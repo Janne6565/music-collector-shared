@@ -18,6 +18,9 @@ export interface EditorFields {
    * Held as strings like every other field here, including the year: a half-typed "19" is
    * a legitimate intermediate state of a field somebody is filling in, and parsing on each
    * keystroke would either reject it or silently store 19.
+   *
+   * `format` is the exception: every copy has one and every copy may change it, so on a
+   * matched copy this starts at the catalogue's answer rather than blank.
    */
   title: string;
   artist: string;
@@ -27,7 +30,7 @@ export interface EditorFields {
   format: Format | "";
 }
 
-function fieldsOf(copy: Copy): EditorFields {
+function fieldsOf(copy: Copy, catalogFormat: Format | undefined): EditorFields {
   return {
     condition: copy.condition ?? "",
     sleeveCondition: copy.sleeveCondition ?? "",
@@ -43,19 +46,29 @@ function fieldsOf(copy: Copy): EditorFields {
     year: copy.manualYear == null ? "" : String(copy.manualYear),
     label: copy.manualLabel ?? "",
     catalogNumber: copy.manualCatalogNumber ?? "",
-    format: copy.manualFormat ?? "",
+    format: copy.manualFormat ?? catalogFormat ?? "",
   };
 }
 
 /**
- * The pressing half of the patch — empty unless this copy owns its own release facts.
+ * The pressing half of the patch — five fields on a hand-entered copy, and on a matched
+ * one only the format, and only when it actually moved.
  *
  * Omitted rather than sent as nulls on a matched copy: `applyCopyPatch` restamps whatever
  * it is given a value for, and stamping six fields nobody edited would let a save here
  * start winning conflicts elsewhere.
  */
-function manualPatch(copy: Copy, fields: EditorFields): Partial<ManualRelease> {
-  if (!isManualCopy(copy)) return {};
+function manualPatch(
+  copy: Copy,
+  fields: EditorFields,
+  catalogFormat: Format | undefined,
+): Partial<ManualRelease> {
+  if (!isManualCopy(copy)) {
+    // Picking the catalogue's own format is how you take the override off again: the copy
+    // goes back to following the archive, including if the archive is corrected later.
+    const chosen = fields.format === "" || fields.format === catalogFormat ? null : fields.format;
+    return chosen === (copy.manualFormat ?? null) ? {} : { manualFormat: chosen };
+  }
   const year = Number.parseInt(fields.year.trim(), 10);
   return {
     manualTitle: blankToNull(fields.title),
@@ -78,8 +91,18 @@ function blankToNull(value: string): string | null {
  * fields — so saving a form where you only touched the price does not start winning
  * conflicts against another device's edit to the condition.
  */
-export function useCopyEditorLogic(copy: Copy, onSave: (patch: CopyPatch) => void) {
-  const [fields, setFields] = useState<EditorFields>(() => fieldsOf(copy));
+export function useCopyEditorLogic(
+  copy: Copy,
+  onSave: (patch: CopyPatch) => void,
+  /**
+   * What the archive says this pressing is, when it is a pressing the archive has.
+   *
+   * Passed in rather than looked up: this hook edits a copy, and the screens that draw it
+   * are already holding the release.
+   */
+  catalogFormat?: Format,
+) {
+  const [fields, setFields] = useState<EditorFields>(() => fieldsOf(copy, catalogFormat));
   const [priceInvalid, setPriceInvalid] = useState(false);
   const [dateInvalid, setDateInvalid] = useState(false);
 
@@ -90,10 +113,10 @@ export function useCopyEditorLogic(copy: Copy, onSave: (patch: CopyPatch) => voi
   }, []);
 
   const reset = useCallback(() => {
-    setFields(fieldsOf(copy));
+    setFields(fieldsOf(copy, catalogFormat));
     setPriceInvalid(false);
     setDateInvalid(false);
-  }, [copy]);
+  }, [copy, catalogFormat]);
 
   const submit = useCallback(() => {
     // A manual copy cleared of its artist or title has nothing left to call it on the
@@ -123,9 +146,9 @@ export function useCopyEditorLogic(copy: Copy, onSave: (patch: CopyPatch) => voi
       purchasedAt: fields.purchasedAt.trim() === "" ? null : fields.purchasedAt.trim(),
       rating: fields.rating,
       notes: fields.notes.trim() === "" ? null : fields.notes,
-      ...manualPatch(copy, fields),
+      ...manualPatch(copy, fields, catalogFormat),
     });
-  }, [copy, fields, onSave]);
+  }, [copy, fields, onSave, catalogFormat]);
 
   return {
     fields,
@@ -134,7 +157,7 @@ export function useCopyEditorLogic(copy: Copy, onSave: (patch: CopyPatch) => voi
     submit,
     priceInvalid,
     dateInvalid,
-    /** Whether the pressing fields are this copy's to edit at all. */
+    /** Whether the pressing fields — bar the format, which is always editable — are this copy's. */
     manual: isManualCopy(copy),
     /** A manual copy still needs the two things that name it. */
     canSave: !isManualCopy(copy) || (fields.artist.trim() !== "" && fields.title.trim() !== ""),

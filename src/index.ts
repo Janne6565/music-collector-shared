@@ -16,6 +16,7 @@ export * from "./domain/manualRelease.js";
 export * from "./domain/merge.js";
 export * from "./domain/money.js";
 export * from "./domain/passwordStrength.js";
+export * from "./domain/copyFormat.js";
 export * from "./domain/preview.js";
 
 // The write path. Every edit is stamped here, or it loses every merge it takes part in.

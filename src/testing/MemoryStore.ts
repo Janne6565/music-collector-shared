@@ -1,3 +1,4 @@
+import { copyFormat } from "../domain/copyFormat.js";
 import { manualRelease } from "../domain/manualRelease.js";
 import type {
   CollectionStats,
@@ -44,7 +45,9 @@ export class MemoryStore implements LocalStore {
     let copies = this.live(this.copies.values());
     if (filter?.format !== undefined && filter.format !== "ALL") {
       const releases = await this.getReleases(copies.map((copy) => copy.releaseId));
-      copies = copies.filter((copy) => releases.get(copy.releaseId)?.format === filter.format);
+      copies = copies.filter(
+        (copy) => copyFormat(copy, releases.get(copy.releaseId)) === filter.format,
+      );
     }
     if (filter?.condition !== undefined && filter.condition !== null) {
       copies = copies.filter((copy) => copy.condition === filter.condition);
@@ -179,10 +182,8 @@ export class MemoryStore implements LocalStore {
     let priced = 0;
     for (const copy of copies) {
       const release = this.releases.get(copy.releaseId);
-      if (release !== undefined) {
-        byFormat[release.format] += 1;
-        albums.add(release.albumId);
-      }
+      byFormat[copyFormat(copy, release)] += 1;
+      if (release !== undefined) albums.add(release.albumId);
       if (copy.pricePaidCents !== null) {
         totalSpentCents += copy.pricePaidCents;
         priced += 1;

@@ -181,8 +181,9 @@ export function manualReleaseCopyId(releaseId: string): string | null {
  * that each merges under its own clock — fixing the year on the phone and the label on the
  * laptop keeps both corrections, which is the whole point of the field-level merge.
  *
- * All null on a copy matched to a real release. Nothing reads them there: a copy's release
- * facts come from the archive whenever the archive has any.
+ * All null on a copy matched to a real release, with the one exception of
+ * `manualFormat` — see its note. Nothing else reads them there: a copy's release facts
+ * come from the archive whenever the archive has any.
  */
 export interface ManualRelease {
   readonly manualTitle: string | null;
@@ -192,8 +193,14 @@ export interface ManualRelease {
   readonly manualCatalogNumber: string | null;
   /**
    * Format is the one manual field with no sensible null: the shelf filters by it and the
-   * silhouette on an artless copy is drawn from it. It is still nullable on the type
-   * because a copy matched to a real release has no manual format at all.
+   * silhouette on an artless copy is drawn from it.
+   *
+   * It is also the one manual field a *matched* copy may carry. The other five describe a
+   * pressing the archive has no record of, but a format can be wrong about a pressing it
+   * does have — a tape of a record catalogued as vinyl is a normal thing to own, and
+   * re-matching the copy to another release would throw away its photos, grades and price
+   * to fix one word. So this overrides the catalogue's format when it is set, and is null
+   * when the archive's answer stands. Read it through {@link copyFormat}, never directly.
    */
   readonly manualFormat: Format | null;
 }

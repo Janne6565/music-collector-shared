@@ -224,4 +224,58 @@ describe("useCopyEditorLogic", () => {
       expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty("manualTitle");
     });
   });
+
+  describe("the format of a matched copy", () => {
+    it("starts at what the catalogue says", () => {
+      const { result } = renderHook(() => useCopyEditorLogic(copy(), vi.fn(), "VINYL"));
+
+      expect(result.current.fields.format).toBe("VINYL");
+    });
+
+    it("starts at the copy's own answer once it has one", () => {
+      const { result } = renderHook(() =>
+        useCopyEditorLogic(copy({ manualFormat: "CASSETTE" }), vi.fn(), "VINYL"),
+      );
+
+      expect(result.current.fields.format).toBe("CASSETTE");
+    });
+
+    it("saves a format the catalogue does not claim", () => {
+      // The tape of a record MusicBrainz only knows as vinyl.
+      const onSave = vi.fn();
+      const { result } = renderHook(() => useCopyEditorLogic(copy(), onSave, "VINYL"));
+
+      act(() => result.current.set("format", "CASSETTE"));
+      act(() => result.current.submit());
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ manualFormat: "CASSETTE" }));
+      // Still only the format: the other five pressing fields belong to the archive here.
+      expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty("manualTitle");
+    });
+
+    it("takes the override off again when the catalogue's own format is picked", () => {
+      const onSave = vi.fn();
+      const { result } = renderHook(() =>
+        useCopyEditorLogic(copy({ manualFormat: "CASSETTE" }), onSave, "VINYL"),
+      );
+
+      act(() => result.current.set("format", "VINYL"));
+      act(() => result.current.submit());
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ manualFormat: null }));
+    });
+
+    it("sends no format at all when it was not touched", () => {
+      // Restamping an untouched field would let this save win a merge it never fought.
+      const onSave = vi.fn();
+      const { result } = renderHook(() =>
+        useCopyEditorLogic(copy({ manualFormat: "CASSETTE" }), onSave, "VINYL"),
+      );
+
+      act(() => result.current.set("notes", "Still a tape."));
+      act(() => result.current.submit());
+
+      expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty("manualFormat");
+    });
+  });
 });
