@@ -44,6 +44,7 @@ const release: Release = {
 const draft: CopyDraft = {
   condition: "VG_PLUS",
   sleeveCondition: "NM",
+  preferCatalogArt: false,
   pricePaidCents: 400,
   currency: "EUR",
   purchasedOn: "2026-03-14",
@@ -63,6 +64,7 @@ describe("createCopy", () => {
         "currency",
         "deletedAt",
         "notes",
+        "preferCatalogArt",
         "pricePaidCents",
         "purchasedAt",
         "purchasedOn",

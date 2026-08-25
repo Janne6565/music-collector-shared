@@ -9,6 +9,7 @@ function copy(overrides: Partial<Copy> = {}): Copy {
     releaseId: "rel-1",
     condition: "VG_PLUS",
     sleeveCondition: "NM",
+    preferCatalogArt: false,
     pricePaidCents: 2800,
     currency: "EUR",
     purchasedOn: "2026-08-14",

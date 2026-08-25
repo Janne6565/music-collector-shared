@@ -20,6 +20,7 @@ differently**, or store the same input as **different values**, it is shared:
 | Domain shape | `domain/types.ts` |
 | Clocks and merge | `domain/hlc.ts`, `domain/merge.ts` |
 | Parsing typed input | `domain/money.ts`, `domain/passwordStrength.ts` |
+| Which picture stands for a copy | `domain/preview.ts` |
 | The stamped write path | `local/copyWrites.ts`, `local/photoWrites.ts`, `local/wishWrites.ts` |
 | The storage contract | `local/LocalStore.ts` |
 | Reconciliation | `sync/syncEngine.ts`, `sync/transport.ts` |

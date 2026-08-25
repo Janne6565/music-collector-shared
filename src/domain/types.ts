@@ -105,6 +105,7 @@ export const COPY_MERGEABLE_FIELDS = [
   "releaseId",
   "condition",
   "sleeveCondition",
+  "preferCatalogArt",
   "pricePaidCents",
   "currency",
   "purchasedOn",
@@ -143,6 +144,21 @@ export interface Copy {
    * how sellers list them.
    */
   readonly sleeveCondition: Condition | null;
+  /**
+   * Show the catalogue's artwork for this copy rather than its own first photo.
+   *
+   * Everything else about "which picture stands for this record" is the order of the photo
+   * list — starring a photo moves it to the front, and the front one is what the grid and
+   * the hero draw. The catalogue cover cannot be expressed that way: it is not a Photo, it
+   * belongs to the release rather than to the copy, and it has no position to be moved to.
+   * So the one choice the order cannot represent gets a flag, and only that one.
+   *
+   * A boolean rather than a nullable photo id, because "the catalogue" is the only value
+   * the order could not already have said. Mergeable, so the two devices that disagree
+   * about it converge like they do about a grade; false is both the default and what a
+   * client older than this field sends.
+   */
+  readonly preferCatalogArt: boolean;
   readonly pricePaidCents: number | null;
   readonly currency: string;
   /** ISO date, no time — you know the day you bought a record, not the minute. */
