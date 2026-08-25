@@ -27,6 +27,9 @@ export * from "./local/wishWrites.js";
 export * from "./sync/syncEngine.js";
 export * from "./sync/transport.js";
 
+// The motion set: plain values, spent as CSS on one client and Animated configs on the other.
+export * from "./motion.js";
+
 // Screen logic that must behave identically on both, though it is drawn differently.
 export * from "./detail/theme.js";
 export * from "./detail/useCopyEditorLogic.js";
