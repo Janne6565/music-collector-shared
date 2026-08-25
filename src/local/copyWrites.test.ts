@@ -6,6 +6,7 @@ import {
   type CopyDraft,
   applyCopyPatch,
   createCopy,
+  restoreCopy,
   tombstoneCopy,
 } from "./copyWrites.js";
 
@@ -185,5 +186,29 @@ describe("notes conflicts", () => {
     const patched = applyCopyPatch(conflicted, { rating: 3 }, clock);
 
     expect(patched.notesConflict).toBe("The other device's version.");
+  });
+});
+
+describe("restoreCopy", () => {
+  it("puts the record back and outranks the delete that removed it", () => {
+    const clock = testClock();
+    const copy = createCopy(release, draft, clock, 1000, "copy-1");
+    const deleted = tombstoneCopy(copy, clock, 5000);
+
+    const restored = restoreCopy(deleted, clock);
+
+    expect(restored.deletedAt).toBeNull();
+    // Newer than the delete, or the next merge would simply delete it again.
+    expect(restored.fieldClocks.deletedAt > deleted.fieldClocks.deletedAt).toBe(true);
+  });
+
+  it("leaves every other field and its stamp exactly where they were", () => {
+    const clock = testClock();
+    const copy = createCopy(release, draft, clock, 1000, "copy-1");
+    const restored = restoreCopy(tombstoneCopy(copy, clock, 5000), clock);
+
+    expect(restored.notes).toBe(copy.notes);
+    expect(restored.condition).toBe(copy.condition);
+    expect(restored.fieldClocks.condition).toBe(copy.fieldClocks.condition);
   });
 });

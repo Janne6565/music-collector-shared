@@ -91,6 +91,23 @@ export function applyCopyPatch(copy: Copy, patch: Partial<CopyDraft>, clock: Clo
   return { ...updated, fieldClocks } as Copy;
 }
 
+/**
+ * Puts a tombstoned copy back.
+ *
+ * The mirror of {@link tombstoneCopy}, and stamped the same way for the same reason: the
+ * restore has to be *newer* than the delete or the merge would keep choosing the delete
+ * and the record would vanish again on the next sync. Nothing else about the copy is
+ * touched — undoing a delete is not an edit, and restamping its fields would let a stale
+ * value win somewhere it should not.
+ */
+export function restoreCopy(copy: Copy, clock: ClockSource): Copy {
+  return {
+    ...copy,
+    deletedAt: null,
+    fieldClocks: { ...copy.fieldClocks, deletedAt: hlcEncode(clock.next()) },
+  };
+}
+
 /** Tombstones a copy. The delete is itself a stamped field, so it can lose a merge. */
 export function tombstoneCopy(copy: Copy, clock: ClockSource, now: number): Copy {
   return {
