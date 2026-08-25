@@ -335,6 +335,7 @@ export interface WishlistItem {
  */
 export const PHOTO_MERGEABLE_FIELDS = [
   "copyId",
+  "wishId",
   "storageKey",
   "contentType",
   "byteSize",
@@ -346,7 +347,24 @@ export type PhotoMergeableField = (typeof PHOTO_MERGEABLE_FIELDS)[number];
 export interface Photo {
   /** Client-generated: the photo exists on the device before it is ever uploaded. */
   readonly id: string;
-  readonly copyId: string;
+  /**
+   * The copy this pictures, or null when the picture belongs to a wishlist entry instead.
+   *
+   * Exactly one of `copyId` and `wishId` is set. They are two fields rather than one
+   * owner id and a kind, because a photo that lost track of *what sort of thing* it
+   * belongs to is a photo nothing can find, whereas a null is a question every reader has
+   * to answer anyway.
+   */
+  readonly copyId: string | null;
+  /**
+   * The wishlist entry this pictures, for a record no catalogue has.
+   *
+   * A wish for a hand-entered album can never be handed artwork by the mirror — nobody
+   * has it — so the only cover it can have is one somebody photographed or saved. A
+   * matched wish does not carry one: its album resolves through the metadata proxy, and
+   * two sources for the same tile would need a precedence rule nobody asked for.
+   */
+  readonly wishId: string | null;
   /**
    * Where the bytes live in object storage, or null while the photo is still only on this
    * device. This *is* the upload state — a separate flag could disagree with reality.

@@ -3,12 +3,21 @@ import type { Photo } from "../domain/types.js";
 import { PHOTO_MERGEABLE_FIELDS } from "../domain/types.js";
 import type { ClockSource } from "./copyWrites.js";
 
-export interface PhotoDraft {
-  readonly copyId: string;
+/**
+ * What a new photo needs, minus the owner, which is one of two things.
+ *
+ * Modelled as a union rather than two optional fields so a draft that names neither — or
+ * both — cannot be written down in the first place.
+ */
+export type PhotoDraft = PhotoOwner & {
   readonly contentType: string;
   readonly byteSize: number;
   readonly sortIndex: number;
-}
+};
+
+export type PhotoOwner =
+  | { readonly copyId: string; readonly wishId?: never }
+  | { readonly wishId: string; readonly copyId?: never };
 
 /**
  * A photo starts life with no `storageKey`: it exists on this device and nowhere else.
@@ -21,7 +30,16 @@ export function createPhoto(draft: PhotoDraft, clock: ClockSource, now: number, 
     PHOTO_MERGEABLE_FIELDS.map((field) => [field, stamp]),
   ) as Photo["fieldClocks"];
 
-  return { id, ...draft, storageKey: null, createdAt: now, deletedAt: null, fieldClocks };
+  return {
+    id,
+    copyId: null,
+    wishId: null,
+    ...draft,
+    storageKey: null,
+    createdAt: now,
+    deletedAt: null,
+    fieldClocks,
+  };
 }
 
 /** Records that the bytes are now in object storage. */

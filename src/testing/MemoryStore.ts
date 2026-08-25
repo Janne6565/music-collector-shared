@@ -118,6 +118,18 @@ export class MemoryStore implements LocalStore {
     return covers;
   }
 
+  async listWishPhotos(wishIds: readonly string[]): Promise<Map<string, Photo>> {
+    const wanted = new Set(wishIds);
+    const covers = new Map<string, Photo>();
+    // Newest first, so the picture a replacement produced wins over the one it replaced
+    // in the moment before the old one's tombstone has synced.
+    for (const photo of this.live(this.photos.values()).sort((a, b) => b.createdAt - a.createdAt)) {
+      if (photo.wishId === null || !wanted.has(photo.wishId)) continue;
+      if (!covers.has(photo.wishId)) covers.set(photo.wishId, photo);
+    }
+    return covers;
+  }
+
   async getPhotoIncludingDeleted(id: string): Promise<Photo | undefined> {
     return this.photos.get(id);
   }

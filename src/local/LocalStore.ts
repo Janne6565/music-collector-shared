@@ -59,6 +59,14 @@ export interface LocalStore {
    * tile — a shelf of a few hundred records would otherwise open a few hundred of them.
    */
   listCoverPhotos(copyIds: readonly string[]): Promise<Map<string, Photo>>;
+  /**
+   * The picture somebody gave each of these wishes, keyed by wish id.
+   *
+   * One picture per wish, not a strip: a wish is a line on a list, and all a picture has
+   * to do there is say which record it is — uploading a second replaces the first. Batched
+   * like `listCoverPhotos` for the same reason, since the list asks for the whole screen.
+   */
+  listWishPhotos(wishIds: readonly string[]): Promise<Map<string, Photo>>;
   getPhotoIncludingDeleted(id: string): Promise<Photo | undefined>;
   /** Photos whose bytes are on this device but not yet in object storage. */
   listPhotosAwaitingUpload(): Promise<Photo[]>;
