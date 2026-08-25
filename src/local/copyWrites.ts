@@ -1,6 +1,7 @@
 import { type Hlc, hlcEncode } from "../domain/hlc.js";
-import type { Copy, CopyMergeableField, Release } from "../domain/types.js";
-import { COPY_MERGEABLE_FIELDS } from "../domain/types.js";
+import { EMPTY_MANUAL_RELEASE } from "../domain/manualRelease.js";
+import type { Copy, CopyMergeableField, ManualRelease, Release } from "../domain/types.js";
+import { COPY_MERGEABLE_FIELDS, manualReleaseId } from "../domain/types.js";
 
 export interface CopyDraft {
   readonly condition: Copy["condition"];
@@ -33,6 +34,17 @@ export function createCopy(
   now: number,
   id: string,
 ): Copy {
+  return stampedCopy(release.id, EMPTY_MANUAL_RELEASE, draft, clock, now, id);
+}
+
+function stampedCopy(
+  releaseId: string,
+  manual: ManualRelease,
+  draft: CopyDraft,
+  clock: ClockSource,
+  now: number,
+  id: string,
+): Copy {
   const stamp = hlcEncode(clock.next());
   const fieldClocks = Object.fromEntries(
     COPY_MERGEABLE_FIELDS.map((field) => [field, stamp]),
@@ -40,7 +52,8 @@ export function createCopy(
 
   return {
     id,
-    releaseId: release.id,
+    releaseId,
+    ...manual,
     condition: draft.condition,
     sleeveCondition: draft.sleeveCondition,
     catalogArt: draft.catalogArt,
@@ -58,6 +71,32 @@ export function createCopy(
 }
 
 /**
+ * Creates a copy of a pressing no catalogue has, described entirely by what was typed.
+ *
+ * The same shape as {@link createCopy} in every respect that matters — every mergeable
+ * field stamped once, at creation — except that the release facts come from the person
+ * instead of from a `Release`, and the release id is the copy's own (see
+ * {@link manualReleaseId}).
+ */
+export function createManualCopy(
+  manual: ManualRelease,
+  draft: CopyDraft,
+  clock: ClockSource,
+  now: number,
+  id: string,
+): Copy {
+  return stampedCopy(manualReleaseId(id), manual, draft, clock, now, id);
+}
+
+/**
+ * What an edit can change: the copy's own facts, and — on a manual copy — the pressing's.
+ *
+ * One patch type rather than two write paths, because the two are edited in the same form
+ * and saved by the same press. `applyCopyPatch` restamps per key either way.
+ */
+export type CopyPatch = Partial<CopyDraft & ManualRelease>;
+
+/**
  * Applies a patch, restamping only the fields whose value actually changed.
  *
  * This is the whole point of field-level merge: editing the condition on one device and
@@ -65,8 +104,8 @@ export function createCopy(
  * Restamping untouched fields would destroy that — a no-op save on one device would start
  * winning conflicts against real edits made elsewhere.
  */
-export function applyCopyPatch(copy: Copy, patch: Partial<CopyDraft>, clock: ClockSource): Copy {
-  const changed = (Object.keys(patch) as (keyof CopyDraft)[]).filter(
+export function applyCopyPatch(copy: Copy, patch: CopyPatch, clock: ClockSource): Copy {
+  const changed = (Object.keys(patch) as (keyof CopyPatch)[]).filter(
     (key) => patch[key] !== undefined && patch[key] !== copy[key],
   );
   if (changed.length === 0) {

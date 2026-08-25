@@ -12,6 +12,7 @@
 // The domain, and the rules that decide who wins a conflict.
 export * from "./domain/types.js";
 export * from "./domain/hlc.js";
+export * from "./domain/manualRelease.js";
 export * from "./domain/merge.js";
 export * from "./domain/money.js";
 export * from "./domain/passwordStrength.js";

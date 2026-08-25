@@ -7,6 +7,12 @@ function copy(overrides: Partial<Copy> = {}): Copy {
   return {
     id: "copy-1",
     releaseId: "rel-1",
+    manualTitle: null,
+    manualArtist: null,
+    manualYear: null,
+    manualLabel: null,
+    manualCatalogNumber: null,
+    manualFormat: null,
     condition: "VG_PLUS",
     sleeveCondition: "NM",
     catalogArt: "AUTO",
@@ -36,6 +42,14 @@ describe("useCopyEditorLogic", () => {
       purchasedAt: "Concerto, Amsterdam",
       rating: 4,
       notes: "Gatefold.",
+      // The pressing fields exist on every copy and stay blank on a matched one — the
+      // form only offers them where they are the copy's to answer.
+      title: "",
+      artist: "",
+      year: "",
+      label: "",
+      catalogNumber: "",
+      format: "",
     });
   });
 
@@ -151,6 +165,63 @@ describe("useCopyEditorLogic", () => {
       purchasedAt: "",
       rating: null,
       notes: "",
+      title: "",
+      artist: "",
+      year: "",
+      label: "",
+      catalogNumber: "",
+      format: "",
+    });
+  });
+
+  describe("a hand-entered copy", () => {
+    const manual = () =>
+      copy({
+        releaseId: "local:copy-1",
+        manualTitle: "Untitled live tape",
+        manualArtist: "Sun Ra Arkestra",
+        manualYear: 1978,
+        manualFormat: "CASSETTE",
+      });
+
+    it("offers the pressing's own fields, and says so", () => {
+      const { result } = renderHook(() => useCopyEditorLogic(manual(), vi.fn()));
+
+      expect(result.current.manual).toBe(true);
+      expect(result.current.fields.title).toBe("Untitled live tape");
+      expect(result.current.fields.year).toBe("1978");
+    });
+
+    it("saves a corrected year as a number, not the string that was typed", () => {
+      const onSave = vi.fn();
+      const { result } = renderHook(() => useCopyEditorLogic(manual(), onSave));
+
+      act(() => result.current.set("year", "1979"));
+      act(() => result.current.submit());
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ manualYear: 1979 }));
+    });
+
+    it("will not save itself out of a name", () => {
+      const onSave = vi.fn();
+      const { result } = renderHook(() => useCopyEditorLogic(manual(), onSave));
+
+      act(() => result.current.set("title", "  "));
+
+      expect(result.current.canSave).toBe(false);
+      act(() => result.current.submit());
+      expect(onSave).not.toHaveBeenCalled();
+    });
+
+    it("sends no pressing fields at all for a copy matched to a release", () => {
+      // Stamping six fields nobody edited would let this save start winning conflicts
+      // against another device's real edits.
+      const onSave = vi.fn();
+      const { result } = renderHook(() => useCopyEditorLogic(copy(), onSave));
+
+      act(() => result.current.submit());
+
+      expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty("manualTitle");
     });
   });
 });

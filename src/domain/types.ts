@@ -118,6 +118,12 @@ export interface Release {
  */
 export const COPY_MERGEABLE_FIELDS = [
   "releaseId",
+  "manualTitle",
+  "manualArtist",
+  "manualYear",
+  "manualLabel",
+  "manualCatalogNumber",
+  "manualFormat",
   "condition",
   "sleeveCondition",
   "catalogArt",
@@ -134,12 +140,70 @@ export type CopyMergeableField = (typeof COPY_MERGEABLE_FIELDS)[number];
 /** Encoded HLC stamps, one per mergeable field. */
 export type FieldClocks<Field extends string> = Readonly<Record<Field, string>>;
 
-export interface Copy {
+/**
+ * The prefix on the release id of a copy nobody has a record of.
+ *
+ * The two catalogues are `musicbrainz:` and `discogs:`; `local:` is the third source, and
+ * the only one whose rows are not a cache of anything. What follows the prefix is the
+ * copy's own id — see {@link manualReleaseId}.
+ */
+export const MANUAL_RELEASE_PREFIX = "local:";
+
+/**
+ * The release id a manually entered copy points at: its own id, source-qualified.
+ *
+ * Deliberately derived from the copy rather than a second generated uuid. A manual
+ * pressing is described by exactly one copy — that is what "manual" means here — so
+ * inventing a separate identity for it would only create the possibility of a release
+ * nobody owns, or a copy pointing at a release this device has never heard of. With the
+ * copy's own id inside it, any device holding the copy can resolve the release, including
+ * one that pulled the copy from the server and has no local cache row for it at all.
+ */
+export function manualReleaseId(copyId: string): string {
+  return `${MANUAL_RELEASE_PREFIX}${copyId}`;
+}
+
+export function isManualReleaseId(releaseId: string): boolean {
+  return releaseId.startsWith(MANUAL_RELEASE_PREFIX);
+}
+
+/** The copy id inside a manual release id, or null when it is not one. */
+export function manualReleaseCopyId(releaseId: string): string | null {
+  return isManualReleaseId(releaseId) ? releaseId.slice(MANUAL_RELEASE_PREFIX.length) : null;
+}
+
+/**
+ * What a manually entered copy says about its own pressing.
+ *
+ * These live on the `Copy` rather than in the release cache because they are the user's
+ * data, not the archive's: they have to sync, they have to survive a cache the client is
+ * free to drop, and they have to be correctable later. Six fields rather than one blob so
+ * that each merges under its own clock — fixing the year on the phone and the label on the
+ * laptop keeps both corrections, which is the whole point of the field-level merge.
+ *
+ * All null on a copy matched to a real release. Nothing reads them there: a copy's release
+ * facts come from the archive whenever the archive has any.
+ */
+export interface ManualRelease {
+  readonly manualTitle: string | null;
+  readonly manualArtist: string | null;
+  readonly manualYear: number | null;
+  readonly manualLabel: string | null;
+  readonly manualCatalogNumber: string | null;
+  /**
+   * Format is the one manual field with no sensible null: the shelf filters by it and the
+   * silhouette on an artless copy is drawn from it. It is still nullable on the type
+   * because a copy matched to a real release has no manual format at all.
+   */
+  readonly manualFormat: Format | null;
+}
+
+export interface Copy extends ManualRelease {
   /** Client-generated, so a record created offline never collides on sync. */
   readonly id: string;
   /**
    * Which release this is a copy of, source-qualified ("musicbrainz:<uuid>",
-   * "discogs:<int>").
+   * "discogs:<int>", or "local:<this copy's id>" when it was typed in by hand).
    *
    * One field rather than a source beside an id: this is a mergeable value, so as two
    * fields each would merge under its own clock and one device's source could pair with

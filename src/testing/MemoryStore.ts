@@ -1,3 +1,4 @@
+import { manualRelease } from "../domain/manualRelease.js";
 import type {
   CollectionStats,
   Copy,
@@ -6,7 +7,7 @@ import type {
   Release,
   WishlistItem,
 } from "../domain/types.js";
-import { FORMATS } from "../domain/types.js";
+import { FORMATS, manualReleaseCopyId } from "../domain/types.js";
 import type { LibraryFilter, LocalStore } from "../local/LocalStore.js";
 
 /**
@@ -42,12 +43,8 @@ export class MemoryStore implements LocalStore {
   async listCopies(filter?: LibraryFilter): Promise<Copy[]> {
     let copies = this.live(this.copies.values());
     if (filter?.format !== undefined && filter.format !== "ALL") {
-      const releaseIds = new Set(
-        [...this.releases.values()]
-          .filter((release) => release.format === filter.format)
-          .map((release) => release.id),
-      );
-      copies = copies.filter((copy) => releaseIds.has(copy.releaseId));
+      const releases = await this.getReleases(copies.map((copy) => copy.releaseId));
+      copies = copies.filter((copy) => releases.get(copy.releaseId)?.format === filter.format);
     }
     if (filter?.condition !== undefined && filter.condition !== null) {
       copies = copies.filter((copy) => copy.condition === filter.condition);
@@ -65,12 +62,9 @@ export class MemoryStore implements LocalStore {
   }
 
   async listCopiesInReleaseGroup(albumId: string): Promise<Copy[]> {
-    const releaseIds = new Set(
-      [...this.releases.values()]
-        .filter((release) => release.albumId === albumId)
-        .map((release) => release.id),
-    );
-    return this.live(this.copies.values()).filter((copy) => releaseIds.has(copy.releaseId));
+    const copies = this.live(this.copies.values());
+    const releases = await this.getReleases(copies.map((copy) => copy.releaseId));
+    return copies.filter((copy) => releases.get(copy.releaseId)?.albumId === albumId);
   }
 
   async putCopy(copy: Copy): Promise<void> {
@@ -87,13 +81,20 @@ export class MemoryStore implements LocalStore {
   }
 
   async getRelease(releaseId: string): Promise<Release | undefined> {
+    // A manual release is not cached anywhere — it is derived from the copy that describes
+    // it, so that a device which pulled the copy from the server resolves it too.
+    const copyId = manualReleaseCopyId(releaseId);
+    if (copyId !== null) {
+      const copy = this.copies.get(copyId);
+      return copy === undefined ? undefined : manualRelease(copy);
+    }
     return this.releases.get(releaseId);
   }
 
   async getReleases(releaseIds: readonly string[]): Promise<Map<string, Release>> {
     const found = new Map<string, Release>();
     for (const id of releaseIds) {
-      const release = this.releases.get(id);
+      const release = await this.getRelease(id);
       if (release !== undefined) found.set(id, release);
     }
     return found;
