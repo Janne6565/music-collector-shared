@@ -94,8 +94,8 @@ export const PRIVACY_POLICY: LegalDocument = {
       heading: { de: "Speicherdauer", en: "Retention" },
       paragraphs: [
         {
-          de: "Kontodaten und Sammlungsdaten bis zur Löschung des Kontos, danach längstens 30 Tage in Backups. Server-Logs 14 Tage. Einwilligungsnachweise bis drei Jahre nach Ende der Nutzung, weil sie der Nachweispflicht aus Art. 7 Abs. 1 DSGVO dienen.",
-          en: "Account and collection data until the account is deleted, then for at most 30 days in backups. Server logs for 14 days. Consent records for up to three years after use ends, because they serve the duty to demonstrate consent under Art. 7 (1) GDPR.",
+          de: "Kontodaten und Sammlungsdaten bis zur Löschung des Kontos, danach längstens 30 Tage in Backups. Server-Logs 14 Tage. Einwilligungsnachweise so lange, wie das Konto besteht: Sie werden zusammen mit dem Konto gelöscht, weil ein Nachweis, der niemanden mehr betrifft, nur noch personenbezogene Daten ohne Zweck wäre.",
+          en: "Account and collection data until the account is deleted, then for at most 30 days in backups. Server logs for 14 days. Consent records for as long as the account exists: they are deleted along with it, because a record of consent that no longer concerns anyone would be personal data with no purpose left.",
         },
         {
           de: "Nach der Löschung bleiben geteilte Inhalte nicht bei anderen Nutzern zurück: Freigaben werden mit dem Konto entfernt, nicht nur unsichtbar geschaltet.",
