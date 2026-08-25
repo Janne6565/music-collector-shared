@@ -12,6 +12,15 @@ export interface WishDraft {
   readonly note: string | null;
 }
 
+/**
+ * What an edit to an entry may touch.
+ *
+ * `sortIndex` is not part of `WishDraft` because nothing ever *drafts* a position — a new
+ * entry lands at the top of the newest-first list and has no manual place until somebody
+ * drags one. It only ever arrives later, as a patch.
+ */
+export type WishPatch = Partial<WishDraft> & { readonly sortIndex?: number | null };
+
 /** Stamps every mergeable field, for the same reason a copy does: an unstamped field is
  * indistinguishable from an infinitely old one at merge time. */
 export function createWishlistItem(
@@ -25,16 +34,16 @@ export function createWishlistItem(
     WISH_MERGEABLE_FIELDS.map((field) => [field, stamp]),
   ) as WishlistItem["fieldClocks"];
 
-  return { id, ...draft, createdAt: now, deletedAt: null, fieldClocks };
+  return { id, ...draft, sortIndex: null, createdAt: now, deletedAt: null, fieldClocks };
 }
 
 /** Restamps only what changed, so concurrent edits to different fields both survive. */
 export function applyWishPatch(
   item: WishlistItem,
-  patch: Partial<WishDraft>,
+  patch: WishPatch,
   clock: ClockSource,
 ): WishlistItem {
-  const changed = (Object.keys(patch) as (keyof WishDraft)[]).filter(
+  const changed = (Object.keys(patch) as (keyof WishPatch)[]).filter(
     (key) => patch[key] !== undefined && patch[key] !== item[key],
   );
   if (changed.length === 0) return item;
@@ -58,6 +67,21 @@ export function tombstoneWishlistItem(
   return {
     ...item,
     deletedAt: now,
+    fieldClocks: { ...item.fieldClocks, deletedAt: hlcEncode(clock.next()) },
+  };
+}
+
+/**
+ * Puts a tombstoned entry back — "Keep it" on screen 16e's line.
+ *
+ * The mirror of {@link tombstoneWishlistItem}, stamped for the same reason `restoreCopy`
+ * is: the restore has to be newer than the delete, or the merge keeps choosing the delete
+ * and the entry leaves again on the next sync.
+ */
+export function restoreWishlistItem(item: WishlistItem, clock: ClockSource): WishlistItem {
+  return {
+    ...item,
+    deletedAt: null,
     fieldClocks: { ...item.fieldClocks, deletedAt: hlcEncode(clock.next()) },
   };
 }

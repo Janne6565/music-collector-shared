@@ -294,6 +294,7 @@ export const WISH_MERGEABLE_FIELDS = [
   "year",
   "desiredFormat",
   "note",
+  "sortIndex",
   "deletedAt",
 ] as const;
 export type WishMergeableField = (typeof WISH_MERGEABLE_FIELDS)[number];
@@ -308,6 +309,18 @@ export interface WishlistItem {
   /** A wish is for an album in a format, not for one specific pressing. */
   readonly desiredFormat: Format | null;
   readonly note: string | null;
+  /**
+   * Where the entry sits once the list has been hand-sorted, or `null` while it never has
+   * been. It is a synced, mergeable field rather than a device preference because dragging
+   * a row is a statement about the list itself — "this is the one I am closest to finding"
+   * — and a hand-built order that only existed on the phone would be gone the moment you
+   * opened the web app.
+   *
+   * A drag renumbers every live entry from 0, so the values are dense and the ordering
+   * survives one device's writes losing a merge: the worst case is a list ordered by
+   * somebody else's drag, never a list with holes in it.
+   */
+  readonly sortIndex: number | null;
   readonly createdAt: number;
   readonly deletedAt: number | null;
   readonly fieldClocks: FieldClocks<WishMergeableField>;
