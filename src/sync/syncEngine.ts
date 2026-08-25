@@ -1,5 +1,5 @@
 import { mergeCopies, mergePhotos, mergeWishlistItems } from "../domain/merge.js";
-import type { Copy, Photo, WishlistItem } from "../domain/types.js";
+import { type Copy, type Photo, type WishlistItem, isManualReleaseId } from "../domain/types.js";
 import type { LocalStore } from "../local/LocalStore.js";
 import { type ClockSource, tombstoneCopy } from "../local/copyWrites.js";
 import { markUploaded } from "../local/photoWrites.js";
@@ -17,6 +17,9 @@ import type { SyncTransport } from "./transport.js";
 
 /** How the very first sync after signing in should treat the two collections. */
 export type FirstSyncStrategy = "MERGE" | "KEEP_LOCAL" | "KEEP_ACCOUNT";
+
+/** The server takes a hundred release ids at a time, so a large collection pages. */
+const RELEASE_BATCH = 100;
 
 export interface SyncResult {
   readonly pulled: number;
@@ -89,6 +92,7 @@ export class SyncEngine {
   async sync(): Promise<SyncResult> {
     const pulled = await this.pullAll();
     await this.downloadMissingPhotoBytes(pulled.photos);
+    await this.cacheMissingReleases();
     const pushed = await this.pushPending();
     return {
       pulled: pulled.copies.length + pulled.wishes.length + pulled.photos.length,
@@ -151,6 +155,47 @@ export class SyncEngine {
       } catch {
         // Offline, too large, or storage is down. The photo stays local and the next sync
         // tries again; nothing is lost and the picture still shows on this device.
+      }
+    }
+  }
+
+  /**
+   * Fetches the catalogue entries for copies this device holds but cannot describe.
+   *
+   * A pulled copy names a release; it does not carry it. The catalogue is a shared cache
+   * that sync deliberately does not move, so on a device that has just signed in every
+   * copy arrives pointing at metadata it has never seen — a shelf of records with no
+   * title, no artist and no sleeve. This is what fills that in.
+   *
+   * Asked over the whole local collection rather than only the page just pulled: a device
+   * that synced before this existed already has the copies and is still missing the
+   * releases, and it should heal on its next sync rather than only on the next new record.
+   * The store is asked first, so the steady state is one local read and no request at all.
+   */
+  private async cacheMissingReleases(): Promise<void> {
+    const copies = await this.store.listCopies();
+    const wanted = [
+      ...new Set(
+        copies
+          .map((copy) => copy.releaseId)
+          // A hand-entered release is derived from the copy itself and is in no catalogue.
+          .filter((releaseId) => !isManualReleaseId(releaseId)),
+      ),
+    ];
+    if (wanted.length === 0) return;
+
+    const held = await this.store.getReleases(wanted);
+    const missing = wanted.filter((releaseId) => !held.has(releaseId));
+
+    for (let from = 0; from < missing.length; from += RELEASE_BATCH) {
+      const batch = missing.slice(from, from + RELEASE_BATCH);
+      try {
+        const releases = await this.transport.fetchReleases(batch);
+        if (releases.length > 0) await this.store.cacheReleases(releases);
+      } catch {
+        // Offline, or the mirror is down. The shelf shows placeholders until the next
+        // sync rather than failing the whole reconciliation over metadata.
+        return;
       }
     }
   }

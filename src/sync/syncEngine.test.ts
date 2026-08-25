@@ -8,6 +8,7 @@ import type { SyncTransport } from "./transport.js";
 
 const pull = vi.fn();
 const push = vi.fn();
+const fetchReleases = vi.fn();
 
 /**
  * The engine's whole view of the network. Photo bytes are not exercised here — moving them
@@ -19,6 +20,7 @@ const transport: SyncTransport = {
   push: (copies, wishes, photos) => push(copies, wishes, photos),
   uploadPhoto: async () => null,
   downloadPhoto: async () => {},
+  fetchReleases: (releaseIds) => fetchReleases(releaseIds),
 };
 
 const EMPTY_PAGE = { copies: [], wishes: [], photos: [], cursor: 0, hasMore: false };
@@ -78,6 +80,8 @@ describe("SyncEngine", () => {
     engine = new SyncEngine(store, clock, transport);
     pull.mockReset();
     push.mockReset();
+    fetchReleases.mockReset();
+    fetchReleases.mockResolvedValue([]);
     pull.mockResolvedValue(EMPTY_PAGE);
     push.mockResolvedValue({ ...EMPTY_PAGE });
   });
@@ -158,6 +162,63 @@ describe("SyncEngine", () => {
     const pushed = push.mock.calls[0]?.[0] as Copy[];
     expect(pushed).toHaveLength(1);
     expect(pushed[0]?.deletedAt).toBe(5000);
+  });
+
+  describe("the catalogue behind pulled copies", () => {
+    it("fetches the releases a pulled copy names but this device has never seen", async () => {
+      const remote = createCopy(release, draft, clock, 1000, "copy-remote");
+      pull.mockResolvedValueOnce({ ...EMPTY_PAGE, copies: [remote], cursor: 5, hasMore: false });
+      fetchReleases.mockResolvedValueOnce([release]);
+
+      await engine.sync();
+
+      expect(fetchReleases).toHaveBeenCalledWith(["rel-1"]);
+      expect(await store.getRelease("rel-1")).toMatchObject({ title: "Bitches Brew" });
+    });
+
+    it("does not ask again for a release it already holds", async () => {
+      await store.cacheReleases([release]);
+      await store.putCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+
+      await engine.sync();
+
+      expect(fetchReleases).not.toHaveBeenCalled();
+    });
+
+    it("never asks a catalogue about a hand-entered release", async () => {
+      const manual: Copy = {
+        ...createCopy(release, draft, clock, 1000, "copy-manual"),
+        releaseId: "local:copy-manual",
+      };
+      pull.mockResolvedValueOnce({ ...EMPTY_PAGE, copies: [manual], cursor: 5, hasMore: false });
+
+      await engine.sync();
+
+      expect(fetchReleases).not.toHaveBeenCalled();
+    });
+
+    it("heals a device that pulled its copies before this existed", async () => {
+      // The copies are already here, the pull brings nothing new, and the shelf is still
+      // blank -- which is exactly the state a client left in by an older build is in.
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockResolvedValueOnce([release]);
+
+      await engine.sync();
+
+      expect(fetchReleases).toHaveBeenCalledWith(["rel-1"]);
+      expect(await store.getRelease("rel-1")).toMatchObject({ title: "Bitches Brew" });
+    });
+
+    it("survives a mirror that is unreachable", async () => {
+      const remote = createCopy(release, draft, clock, 1000, "copy-remote");
+      pull.mockResolvedValueOnce({ ...EMPTY_PAGE, copies: [remote], cursor: 5, hasMore: false });
+      fetchReleases.mockRejectedValueOnce(new Error("offline"));
+
+      const result = await engine.sync();
+
+      expect(result.pulled).toBe(1);
+      expect(await store.getCopy("copy-remote")).toBeDefined();
+    });
   });
 });
 

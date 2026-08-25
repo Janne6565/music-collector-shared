@@ -1,4 +1,4 @@
-import type { Copy, Photo, WishlistItem } from "../domain/types.js";
+import type { Copy, Photo, Release, WishlistItem } from "../domain/types.js";
 
 /**
  * Everything the sync engine needs from the network, expressed in domain terms.
@@ -52,4 +52,14 @@ export interface SyncTransport {
 
   /** Fetches one photo's bytes and stores them on this device. */
   downloadPhoto(photo: Photo): Promise<void>;
+
+  /**
+   * The catalogue entries behind a set of release ids.
+   *
+   * Sync moves copies, not the catalogue: a release is a shared cache of MusicBrainz and
+   * Discogs that any client may drop and refill, so it travels over its own endpoint. Ids
+   * the mirror does not hold are simply missing from the answer — that is not a failure,
+   * and the next sync asks again.
+   */
+  fetchReleases(releaseIds: readonly string[]): Promise<readonly Release[]>;
 }
