@@ -14,6 +14,21 @@
 export const FORMATS = ["VINYL", "CD", "CASSETTE", "DIGITAL", "OTHER"] as const;
 export type Format = (typeof FORMATS)[number];
 
+/**
+ * What a copy has said about the release's own cover art.
+ *
+ *   AUTO       nothing said — the copy's first photo wins, and the catalogue art stands in
+ *              where it has none
+ *   PREFERRED  the catalogue art is the preview, even though the copy has photos
+ *   HIDDEN     the catalogue art is not one of this copy's images at all
+ *
+ * `HIDDEN` is per copy, not per release: the artwork the archive holds for a pressing can
+ * be the wrong cover, or a cover you simply do not want on your shelf, and neither is a
+ * claim about the pressing that other people's copies should inherit.
+ */
+export const CATALOG_ART_CHOICES = ["AUTO", "PREFERRED", "HIDDEN"] as const;
+export type CatalogArtChoice = (typeof CATALOG_ART_CHOICES)[number];
+
 /** The Goldmine grading scale, which screen 1l names as the default. */
 export const CONDITIONS = ["M", "NM", "VG_PLUS", "VG", "G_PLUS", "G", "F", "P"] as const;
 export type Condition = (typeof CONDITIONS)[number];
@@ -105,7 +120,7 @@ export const COPY_MERGEABLE_FIELDS = [
   "releaseId",
   "condition",
   "sleeveCondition",
-  "preferCatalogArt",
+  "catalogArt",
   "pricePaidCents",
   "currency",
   "purchasedOn",
@@ -145,20 +160,23 @@ export interface Copy {
    */
   readonly sleeveCondition: Condition | null;
   /**
-   * Show the catalogue's artwork for this copy rather than its own first photo.
+   * What this copy has decided about the catalogue's own artwork.
    *
    * Everything else about "which picture stands for this record" is the order of the photo
    * list — starring a photo moves it to the front, and the front one is what the grid and
    * the hero draw. The catalogue cover cannot be expressed that way: it is not a Photo, it
    * belongs to the release rather than to the copy, and it has no position to be moved to.
-   * So the one choice the order cannot represent gets a flag, and only that one.
+   * So the choices the order cannot represent live here, and only those.
    *
-   * A boolean rather than a nullable photo id, because "the catalogue" is the only value
-   * the order could not already have said. Mergeable, so the two devices that disagree
-   * about it converge like they do about a grade; false is both the default and what a
-   * client older than this field sends.
+   * One field with three states rather than two booleans beside each other: "prefer it"
+   * and "hide it" are answers to the same question, and as separate flags a copy could
+   * hold both at once — a state nobody chose, kept out only by every write path
+   * remembering to clear the other one.
+   *
+   * Mergeable, so two devices that disagree converge like they do about a grade. `AUTO` is
+   * both the default and what a client older than this field sends.
    */
-  readonly preferCatalogArt: boolean;
+  readonly catalogArt: CatalogArtChoice;
   readonly pricePaidCents: number | null;
   readonly currency: string;
   /** ISO date, no time — you know the day you bought a record, not the minute. */

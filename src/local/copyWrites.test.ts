@@ -44,7 +44,7 @@ const release: Release = {
 const draft: CopyDraft = {
   condition: "VG_PLUS",
   sleeveCondition: "NM",
-  preferCatalogArt: false,
+  catalogArt: "AUTO",
   pricePaidCents: 400,
   currency: "EUR",
   purchasedOn: "2026-03-14",
@@ -60,11 +60,11 @@ describe("createCopy", () => {
 
     expect(Object.keys(copy.fieldClocks).sort()).toEqual(
       [
+        "catalogArt",
         "condition",
         "currency",
         "deletedAt",
         "notes",
-        "preferCatalogArt",
         "pricePaidCents",
         "purchasedAt",
         "purchasedOn",

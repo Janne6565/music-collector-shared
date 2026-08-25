@@ -57,7 +57,7 @@ const release: Release = {
 const draft = {
   condition: "VG_PLUS" as const,
   sleeveCondition: "NM" as const,
-  preferCatalogArt: false,
+  catalogArt: "AUTO" as const,
   pricePaidCents: 2800,
   currency: "EUR",
   purchasedOn: null,

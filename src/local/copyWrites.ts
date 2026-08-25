@@ -5,7 +5,7 @@ import { COPY_MERGEABLE_FIELDS } from "../domain/types.js";
 export interface CopyDraft {
   readonly condition: Copy["condition"];
   readonly sleeveCondition: Copy["sleeveCondition"];
-  readonly preferCatalogArt: Copy["preferCatalogArt"];
+  readonly catalogArt: Copy["catalogArt"];
   readonly pricePaidCents: Copy["pricePaidCents"];
   readonly currency: string;
   readonly purchasedOn: Copy["purchasedOn"];
@@ -43,7 +43,7 @@ export function createCopy(
     releaseId: release.id,
     condition: draft.condition,
     sleeveCondition: draft.sleeveCondition,
-    preferCatalogArt: draft.preferCatalogArt,
+    catalogArt: draft.catalogArt,
     pricePaidCents: draft.pricePaidCents,
     currency: draft.currency,
     purchasedOn: draft.purchasedOn,
