@@ -23,6 +23,7 @@ function copy(overrides: Partial<Copy> = {}): Copy {
     notes: "Gatefold.",
     notesConflict: null,
     rating: 4,
+    hidden: false,
     createdAt: 1000,
     deletedAt: null,
     fieldClocks: {} as Copy["fieldClocks"],

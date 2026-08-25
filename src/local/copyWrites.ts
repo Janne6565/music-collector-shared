@@ -64,6 +64,7 @@ function stampedCopy(
     notes: draft.notes,
     notesConflict: null,
     rating: draft.rating,
+    hidden: false,
     createdAt: now,
     deletedAt: null,
     fieldClocks,
@@ -94,7 +95,7 @@ export function createManualCopy(
  * One patch type rather than two write paths, because the two are edited in the same form
  * and saved by the same press. `applyCopyPatch` restamps per key either way.
  */
-export type CopyPatch = Partial<CopyDraft & ManualRelease>;
+export type CopyPatch = Partial<CopyDraft & ManualRelease & Pick<Copy, "hidden">>;
 
 /**
  * Applies a patch, restamping only the fields whose value actually changed.

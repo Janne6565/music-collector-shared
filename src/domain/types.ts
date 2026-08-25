@@ -133,6 +133,7 @@ export const COPY_MERGEABLE_FIELDS = [
   "purchasedAt",
   "notes",
   "rating",
+  "hidden",
   "deletedAt",
 ] as const;
 export type CopyMergeableField = (typeof COPY_MERGEABLE_FIELDS)[number];
@@ -266,6 +267,15 @@ export interface Copy extends ManualRelease {
    */
   readonly notesConflict: string | null;
   readonly rating: number | null;
+  /**
+   * Kept off every shelf but your own, whatever the sharing settings say.
+   *
+   * A record can be a gift not yet given, or simply nobody's business, and that is a
+   * decision about one copy rather than a reason to close the whole collection. Mergeable
+   * like every other field here: hiding one on the phone has to reach the laptop, and a
+   * client older than this field sends nothing, which reads as not hidden.
+   */
+  readonly hidden: boolean;
   readonly createdAt: number;
   /** Tombstone. Deletes have to be represented, or sync would resurrect the row. */
   readonly deletedAt: number | null;

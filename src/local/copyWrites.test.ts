@@ -65,6 +65,7 @@ describe("createCopy", () => {
         "condition",
         "currency",
         "deletedAt",
+        "hidden",
         "manualArtist",
         "manualCatalogNumber",
         "manualFormat",
@@ -81,6 +82,12 @@ describe("createCopy", () => {
       ].sort(),
     );
     expect(new Set(Object.values(copy.fieldClocks)).size).toBe(1);
+  });
+
+  it("starts out shown", () => {
+    // Hiding is a deliberate act. A copy nobody has hidden must not read as hidden to a
+    // client that has never heard of the field.
+    expect(createCopy(release, draft, testClock(), 5000, "copy-1").hidden).toBe(false);
   });
 
   it("starts alive, with the draft's values", () => {
@@ -112,6 +119,20 @@ describe("applyCopyPatch", () => {
     // to a different field survive the merge.
     expect(patched.fieldClocks.pricePaidCents).toBe(before.pricePaidCents);
     expect(patched.fieldClocks.notes).toBe(before.notes);
+  });
+
+  it("hides a copy as a stamped write like any other edit", () => {
+    const clock = testClock();
+    const copy = createCopy(release, draft, clock, 5000, "copy-1");
+    const before = copy.fieldClocks.hidden;
+
+    const patched = applyCopyPatch(copy, { hidden: true }, clock);
+
+    // Stamped, or hiding a record on the phone would lose every merge against the laptop
+    // and the copy would quietly come back onto the shelf.
+    expect(patched.hidden).toBe(true);
+    expect(patched.fieldClocks.hidden).not.toBe(before);
+    expect(patched.fieldClocks.condition).toBe(copy.fieldClocks.condition);
   });
 
   it("is a no-op when the patch sets the same values", () => {
