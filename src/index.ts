@@ -33,6 +33,10 @@ export * from "./sync/transport.js";
 // The motion set: plain values, spent as CSS on one client and Animated configs on the other.
 export * from "./motion.js";
 
+// The legal layer: one Impressum, one privacy policy, one set of terms — saying different
+// things on the website and in the app is the one failure mode these documents cannot have.
+export * from "./legal/documents.js";
+
 // Screen logic that must behave identically on both, though it is drawn differently.
 export * from "./detail/theme.js";
 export * from "./detail/useCopyEditorLogic.js";
