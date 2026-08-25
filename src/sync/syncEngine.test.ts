@@ -197,6 +197,16 @@ describe("SyncEngine", () => {
       expect(fetchReleases).not.toHaveBeenCalled();
     });
 
+    it("reports what it filled in, so a caller can redraw a shelf nothing was pulled onto", async () => {
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockResolvedValueOnce([release]);
+
+      const result = await engine.sync();
+
+      expect(result.pulled).toBe(0);
+      expect(result.releases).toBe(1);
+    });
+
     it("heals a device that pulled its copies before this existed", async () => {
       // The copies are already here, the pull brings nothing new, and the shelf is still
       // blank -- which is exactly the state a client left in by an older build is in.

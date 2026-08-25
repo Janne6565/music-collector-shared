@@ -24,6 +24,15 @@ const RELEASE_BATCH = 100;
 export interface SyncResult {
   readonly pulled: number;
   readonly pushed: number;
+  /**
+   * How many catalogue entries this sync filled in.
+   *
+   * Counted separately from `pulled` because it moves on its own: a device that pulled its
+   * copies before the client fetched releases at all has nothing new to pull and still has
+   * a whole shelf to redraw. A caller that refreshes its screens on `pulled` alone would
+   * leave that device showing placeholders until the next reload.
+   */
+  readonly releases: number;
   readonly cursor: number;
 }
 
@@ -92,11 +101,12 @@ export class SyncEngine {
   async sync(): Promise<SyncResult> {
     const pulled = await this.pullAll();
     await this.downloadMissingPhotoBytes(pulled.photos);
-    await this.cacheMissingReleases();
+    const releases = await this.cacheMissingReleases();
     const pushed = await this.pushPending();
     return {
       pulled: pulled.copies.length + pulled.wishes.length + pulled.photos.length,
       pushed,
+      releases,
       cursor: await this.store.readSyncCursor(),
     };
   }
@@ -172,7 +182,7 @@ export class SyncEngine {
    * releases, and it should heal on its next sync rather than only on the next new record.
    * The store is asked first, so the steady state is one local read and no request at all.
    */
-  private async cacheMissingReleases(): Promise<void> {
+  private async cacheMissingReleases(): Promise<number> {
     const copies = await this.store.listCopies();
     const wanted = [
       ...new Set(
@@ -182,22 +192,25 @@ export class SyncEngine {
           .filter((releaseId) => !isManualReleaseId(releaseId)),
       ),
     ];
-    if (wanted.length === 0) return;
+    if (wanted.length === 0) return 0;
 
     const held = await this.store.getReleases(wanted);
     const missing = wanted.filter((releaseId) => !held.has(releaseId));
 
+    let cached = 0;
     for (let from = 0; from < missing.length; from += RELEASE_BATCH) {
       const batch = missing.slice(from, from + RELEASE_BATCH);
       try {
         const releases = await this.transport.fetchReleases(batch);
         if (releases.length > 0) await this.store.cacheReleases(releases);
+        cached += releases.length;
       } catch {
         // Offline, or the mirror is down. The shelf shows placeholders until the next
         // sync rather than failing the whole reconciliation over metadata.
-        return;
+        return cached;
       }
     }
+    return cached;
   }
 
   /** Fetches the bytes for photos this device knows about but has never held. */
