@@ -289,6 +289,7 @@ export interface Copy extends ManualRelease {
  */
 export const WISH_MERGEABLE_FIELDS = [
   "albumId",
+  "releaseId",
   "title",
   "artistName",
   "year",
@@ -303,6 +304,18 @@ export interface WishlistItem {
   /** Client-generated, so an item added offline keeps its identity when it syncs. */
   readonly id: string;
   readonly albumId: string;
+  /**
+   * The pressing this entry was made from, when it was made from one.
+   *
+   * A wish is still *for* an album — that is what `albumId` is, and what "one entry per
+   * release" is checked against — but the row somebody clicked in the search was one
+   * pressing among several, each with its own sleeve. Without this the cover shown is
+   * whichever pressing of the album the mirror happens to rank first, which is not the
+   * one that was on screen when the entry was made.
+   *
+   * Null for a hand-typed entry, and for every entry made before this field existed.
+   */
+  readonly releaseId: string | null;
   readonly title: string;
   readonly artistName: string;
   readonly year: number | null;

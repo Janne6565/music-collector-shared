@@ -5,6 +5,8 @@ import type { ClockSource } from "./copyWrites.js";
 
 export interface WishDraft {
   readonly albumId: string;
+  /** The pressing that was picked, so the entry keeps that sleeve. Null when typed. */
+  readonly releaseId: string | null;
   readonly title: string;
   readonly artistName: string;
   readonly year: number | null;

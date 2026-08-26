@@ -1,5 +1,5 @@
 import type { LocalStore } from "../local/LocalStore.js";
-import { type AlbumCovers, albumsNeedingCovers } from "./albumCovers.js";
+import { type AlbumCovers, albumsNeedingCovers, pressingsNeedingCovers } from "./albumCovers.js";
 import { type McPhotoBytes, buildMcArchive } from "./mcArchive.js";
 
 /**
@@ -33,6 +33,16 @@ export type AlbumCoverResolver = (
   albumIds: readonly string[],
 ) => Promise<ReadonlyMap<string, string | null>>;
 
+/**
+ * The same thing for the pressings entries were made from, which the covers endpoint
+ * cannot answer for: it is asked about albums, and an album has no way of saying which of
+ * its pressings somebody picked. Optional for the same reason the album resolver is —
+ * an export that cannot ask still writes a complete collection.
+ */
+export type PressingCoverResolver = (
+  releaseIds: readonly string[],
+) => Promise<ReadonlyMap<string, string | null>>;
+
 export interface McExportCsv {
   readonly collection: string;
   readonly wishlist: string;
@@ -62,6 +72,7 @@ export async function exportMcArchive(
   readPhotoBytes: PhotoByteReader,
   exportedAt: Date,
   resolveAlbumCovers?: AlbumCoverResolver,
+  resolvePressingCovers?: PressingCoverResolver,
 ): Promise<McExport> {
   const copies = await store.listCopies();
   const wishes = await store.listWishlist();
@@ -81,7 +92,7 @@ export async function exportMcArchive(
     photoBytes.push({ photoId: photo.id, contentType: photo.contentType, bytes });
   }
 
-  const albumCovers = await resolveCovers(wishes, resolveAlbumCovers);
+  const albumCovers = await resolveCovers(wishes, resolveAlbumCovers, resolvePressingCovers);
 
   return {
     bytes: buildMcArchive({
@@ -103,18 +114,44 @@ export async function exportMcArchive(
   };
 }
 
+/**
+ * The cover the archive carries for each wished-for album.
+ *
+ * Keyed by album because that is what the importing device looks the answer up by, but
+ * the *value* prefers the pressing the entry was made from: that sleeve is the one the
+ * list has been showing, and an archive that carried the album's instead would quietly
+ * change the picture on the way through the file. One entry per album is enforced when
+ * an entry is made, so there is never a second wish competing for the same key.
+ */
 async function resolveCovers(
-  wishes: readonly { readonly albumId: string }[],
-  resolve: AlbumCoverResolver | undefined,
+  wishes: readonly { readonly albumId: string; readonly releaseId: string | null }[],
+  resolveAlbums: AlbumCoverResolver | undefined,
+  resolvePressings: PressingCoverResolver | undefined,
 ): Promise<AlbumCovers> {
   const albumIds = albumsNeedingCovers(wishes);
-  if (resolve === undefined || albumIds.length === 0) return {};
+  if (albumIds.length === 0) return {};
 
+  const releaseIds = pressingsNeedingCovers(wishes);
   // Swallowed on purpose: a cover is decoration, and an export that refused to write the
   // collection because a picture could not be looked up would be the wrong trade entirely.
-  const resolved = await resolve(albumIds).catch(() => new Map<string, string | null>());
+  const empty = new Map<string, string | null>();
+  const [byAlbum, byPressing] = await Promise.all([
+    resolveAlbums === undefined ? empty : resolveAlbums(albumIds).catch(() => empty),
+    resolvePressings === undefined || releaseIds.length === 0
+      ? empty
+      : resolvePressings(releaseIds).catch(() => empty),
+  ]);
+
+  const pinned = new Map<string, string | null>();
+  for (const wish of wishes) {
+    if (wish.releaseId === null) continue;
+    const url = byPressing.get(wish.releaseId);
+    if (url !== undefined && url !== null) pinned.set(wish.albumId, url);
+  }
+
   const covers: Record<string, string> = {};
-  for (const [albumId, url] of resolved) {
+  for (const albumId of albumIds) {
+    const url = pinned.get(albumId) ?? byAlbum.get(albumId) ?? null;
     if (url !== null && url !== "") covers[albumId] = url;
   }
   return covers;

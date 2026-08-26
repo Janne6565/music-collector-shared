@@ -87,3 +87,22 @@ export function albumsNeedingCovers(wishes: readonly { readonly albumId: string 
   }
   return [...ids];
 }
+
+/**
+ * The pressings an export should resolve covers for.
+ *
+ * An entry made from a search result names the pressing it was made from, and that
+ * sleeve — not whichever pressing of the album the mirror ranks first — is the picture
+ * the wishlist has been showing. It has to be asked for separately: the covers endpoint
+ * answers about albums, and an album cannot say which of its pressings somebody picked.
+ */
+export function pressingsNeedingCovers(
+  wishes: readonly { readonly albumId: string; readonly releaseId: string | null }[],
+): string[] {
+  const ids = new Set<string>();
+  for (const wish of wishes) {
+    if (wish.releaseId === null || isManualReleaseId(wish.releaseId)) continue;
+    ids.add(wish.releaseId);
+  }
+  return [...ids];
+}

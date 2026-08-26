@@ -82,6 +82,7 @@ async function seeded() {
   const wish = createWishlistItem(
     {
       albumId: "musicbrainz:a-2",
+      releaseId: "musicbrainz:r-2",
       title: "Vespertine",
       artistName: "Björk",
       year: 2001,
@@ -353,6 +354,7 @@ describe("wishlist album covers", () => {
       createWishlistItem(
         {
           albumId: "local:made-up",
+          releaseId: null,
           title: "A bootleg",
           artistName: "Nobody",
           year: null,
@@ -378,6 +380,49 @@ describe("wishlist album covers", () => {
     );
 
     expect(asked).toEqual([["musicbrainz:a-2"]]);
+  });
+
+  it("carries the picked pressing's sleeve rather than the album's", async () => {
+    const { store } = await seeded();
+    const PRESSING = "https://img.discogs.com/r-2-front.jpg";
+
+    const built = await exportMcArchive(
+      store,
+      { collection: "", wishlist: "" },
+      readerFor(store),
+      AT,
+      async (ids) => new Map(ids.map((id) => [id, COVER])),
+      async (ids) => new Map(ids.map((id) => [id, id === "musicbrainz:r-2" ? PRESSING : null])),
+    );
+
+    const manifest = JSON.parse(
+      decodeUtf8(
+        readZip(built.bytes).find((e) => e.path === MC_MANIFEST_PATH)?.bytes ?? new Uint8Array(),
+      ),
+    );
+    // Keyed by album, because that is what the importing device looks it up by — but the
+    // value is the sleeve the list was actually showing.
+    expect(manifest.albumCovers).toEqual({ "musicbrainz:a-2": PRESSING });
+  });
+
+  it("falls back to the album when the pinned pressing has no cover", async () => {
+    const { store } = await seeded();
+
+    const built = await exportMcArchive(
+      store,
+      { collection: "", wishlist: "" },
+      readerFor(store),
+      AT,
+      async (ids) => new Map(ids.map((id) => [id, COVER])),
+      async (ids) => new Map(ids.map((id) => [id, null])),
+    );
+
+    const manifest = JSON.parse(
+      decodeUtf8(
+        readZip(built.bytes).find((e) => e.path === MC_MANIFEST_PATH)?.bytes ?? new Uint8Array(),
+      ),
+    );
+    expect(manifest.albumCovers).toEqual({ "musicbrainz:a-2": COVER });
   });
 
   it("still writes the archive when the lookup fails", async () => {
