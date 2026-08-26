@@ -17,7 +17,7 @@ const fetchReleases = vi.fn();
  */
 const transport: SyncTransport = {
   pull: (cursor) => pull(cursor),
-  push: (copies, wishes, photos) => push(copies, wishes, photos),
+  push: (copies, wishes, photos, releases) => push(copies, wishes, photos, releases),
   uploadPhoto: async () => null,
   downloadPhoto: async () => {},
   fetchReleases: (releaseIds) => fetchReleases(releaseIds),
@@ -100,6 +100,9 @@ describe("SyncEngine", () => {
     fetchReleases.mockResolvedValue([]);
     pull.mockResolvedValue(EMPTY_PAGE);
     push.mockResolvedValue({ ...EMPTY_PAGE });
+    // The one-time catalogue offer is exercised in its own block; without this every test
+    // here would also be a test of that, and would count its requests.
+    await store.writeSetting("catalogueOffered", "true");
   });
 
   it("pushes a locally created copy exactly once", async () => {
@@ -281,6 +284,79 @@ describe("SyncEngine", () => {
       expect(result.releasesUnreachable).toBe(false);
       expect(result.releasesMissing).toBe(1);
       expect(result.releases).toBe(0);
+    });
+
+    it("offers the server the catalogue it is missing, once", async () => {
+      // The device that made the copies is the only one still holding their releases: the
+      // mirror never saw them, and for a Discogs id it can never fetch them either.
+      await store.writeSetting("catalogueOffered", "false");
+      await store.cacheReleases([release]);
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      // The mirror answers about nothing, which is exactly the state being repaired.
+      fetchReleases.mockResolvedValue([]);
+
+      await engine.sync();
+
+      const offered = push.mock.calls.find((call) => (call[3] as Release[]).length > 0);
+      expect(offered?.[3]).toEqual([expect.objectContaining({ id: "rel-1" })]);
+      // Copies are not resent by the offer; it carries the catalogue and nothing else.
+      expect(offered?.[0]).toEqual([]);
+
+      push.mockClear();
+      await engine.sync();
+      expect(push.mock.calls.every((call) => (call[3] as Release[]).length === 0)).toBe(true);
+    });
+
+    it("offers nothing the mirror can already answer for", async () => {
+      await store.writeSetting("catalogueOffered", "false");
+      await store.cacheReleases([release]);
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockResolvedValue([release]);
+
+      await engine.sync();
+
+      expect(push.mock.calls.every((call) => (call[3] as Release[]).length === 0)).toBe(true);
+    });
+
+    it("never offers a hand-entered release", async () => {
+      // "local:<copy id>" is derived from its copy and belongs in no shared cache.
+      await store.writeSetting("catalogueOffered", "false");
+      const manual: Copy = {
+        ...createCopy(release, draft, clock, 1000, "copy-manual"),
+        releaseId: "local:copy-manual",
+      };
+      await store.adoptCopy(manual);
+
+      await engine.sync();
+
+      expect(fetchReleases).not.toHaveBeenCalled();
+      expect(push.mock.calls.every((call) => (call[3] as Release[]).length === 0)).toBe(true);
+    });
+
+    it("tries again next sync when the offer could not get through", async () => {
+      await store.writeSetting("catalogueOffered", "false");
+      await store.cacheReleases([release]);
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockResolvedValue([]);
+      push.mockRejectedValueOnce(new Error("offline"));
+
+      // The whole sync must survive it: the catalogue is not worth failing a merge over.
+      await expect(engine.sync()).resolves.toBeDefined();
+
+      push.mockClear();
+      push.mockResolvedValue({ ...EMPTY_PAGE });
+      await engine.sync();
+      expect(push.mock.calls.some((call) => (call[3] as Release[]).length > 0)).toBe(true);
+    });
+
+    it("sends the catalogue behind an ordinary push alongside it", async () => {
+      await store.cacheReleases([release]);
+      await store.putCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+
+      await engine.sync();
+
+      const pushed = push.mock.calls.find((call) => (call[0] as Copy[]).length > 0);
+      expect(pushed?.[3]).toEqual([expect.objectContaining({ id: "rel-1" })]);
     });
 
     it("reports nothing missing once the shelf can describe itself", async () => {

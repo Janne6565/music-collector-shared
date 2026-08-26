@@ -39,6 +39,19 @@ export interface SyncTransport {
     copies: readonly Copy[],
     wishes: readonly WishlistItem[],
     photos: readonly Photo[],
+    /**
+     * The catalogue rows behind the copies going up, as this device holds them.
+     *
+     * The mirror only ever learns of a release when somebody looks it up through the
+     * metadata proxy, so a collection that reached the server any other way -- an archive
+     * imported into a fresh deployment -- names releases the server cannot resolve, and
+     * every *other* device is stuck with a shelf it has no way to fill. For a Discogs id
+     * that is permanent: nothing fetches those by id at all.
+     *
+     * The device that made the copy is the only party still holding the answer, so it
+     * hands it over. The server keeps whatever it already had.
+     */
+    releases: readonly Release[],
   ): Promise<PushResult>;
 
   /**

@@ -1,5 +1,11 @@
 import { mergeCopies, mergePhotos, mergeWishlistItems } from "../domain/merge.js";
-import { type Copy, type Photo, type WishlistItem, isManualReleaseId } from "../domain/types.js";
+import {
+  type Copy,
+  type Photo,
+  type Release,
+  type WishlistItem,
+  isManualReleaseId,
+} from "../domain/types.js";
 import type { LocalStore } from "../local/LocalStore.js";
 import { type ClockSource, tombstoneCopy } from "../local/copyWrites.js";
 import { markUploaded } from "../local/photoWrites.js";
@@ -20,6 +26,9 @@ export type FirstSyncStrategy = "MERGE" | "KEEP_LOCAL" | "KEEP_ACCOUNT";
 
 /** The server takes a hundred release ids at a time, so a large collection pages. */
 const RELEASE_BATCH = 100;
+
+/** Set once this device has offered the server the catalogue it holds. */
+const CATALOGUE_OFFERED = "catalogueOffered";
 
 export interface SyncResult {
   readonly pulled: number;
@@ -127,6 +136,11 @@ export class SyncEngine {
     const pulled = await this.pullAll();
     await this.downloadMissingPhotoBytes(pulled.photos);
     const releases = await this.cacheMissingReleases();
+    try {
+      await this.uploadUnmirroredCatalogue();
+    } catch {
+      // Offline, or the server is down. Unmarked, so the next sync offers it again.
+    }
     const pushed = await this.pushPending();
     return {
       pulled: pulled.copies.length + pulled.wishes.length + pulled.photos.length,
@@ -247,6 +261,62 @@ export class SyncEngine {
     return { cached, missing: missing.length - cached, unreachable };
   }
 
+  /**
+   * The catalogue rows behind a batch of copies, as far as this device holds them.
+   *
+   * Hand-entered releases are left out -- they are derived from the copy itself and belong
+   * in no shared cache -- and so is anything this device cannot describe either, which is
+   * simply nothing to send.
+   */
+  private async catalogueFor(copies: readonly Copy[]): Promise<Release[]> {
+    const wanted = [
+      ...new Set(copies.map((copy) => copy.releaseId).filter((id) => !isManualReleaseId(id))),
+    ];
+    if (wanted.length === 0) return [];
+    return [...(await this.store.getReleases(wanted)).values()];
+  }
+
+  /**
+   * Hands the server the catalogue behind copies it already has, once per device.
+   *
+   * Pushing a copy carries its release from now on, but a collection pushed before that
+   * existed left the mirror with nothing -- and those copies are not pending any more, so
+   * no ordinary push will ever mention them again. Every *other* device is then looking at
+   * a shelf it cannot fill and never will, because ids the mirror has never seen are
+   * absent from its answer rather than fetched.
+   *
+   * So a device that holds the catalogue offers it up once: ask which ids the mirror can
+   * answer for, send the ones it cannot. Marked done afterwards, because in the steady
+   * state this would be a whole-collection round trip on every single sync.
+   */
+  private async uploadUnmirroredCatalogue(): Promise<number> {
+    if ((await this.store.readSetting(CATALOGUE_OFFERED)) === "true") return 0;
+
+    const held = await this.catalogueFor(await this.store.listCopies());
+    if (held.length === 0) {
+      // Nothing to offer, and nothing to keep re-checking for either.
+      await this.store.writeSetting(CATALOGUE_OFFERED, "true");
+      return 0;
+    }
+
+    let offered = 0;
+    for (let from = 0; from < held.length; from += RELEASE_BATCH) {
+      const batch = held.slice(from, from + RELEASE_BATCH);
+      const mirrored = new Set(
+        (await this.transport.fetchReleases(batch.map((release) => release.id))).map(
+          (release) => release.id,
+        ),
+      );
+      const unmirrored = batch.filter((release) => !mirrored.has(release.id));
+      if (unmirrored.length === 0) continue;
+      await this.transport.push([], [], [], unmirrored);
+      offered += unmirrored.length;
+    }
+    // Only once it has actually got through: a pass that threw has to be able to try again.
+    await this.store.writeSetting(CATALOGUE_OFFERED, "true");
+    return offered;
+  }
+
   /** Fetches the bytes for photos this device knows about but has never held. */
   private async downloadMissingPhotoBytes(photos: readonly Photo[]): Promise<void> {
     for (const photo of photos) {
@@ -294,7 +364,12 @@ export class SyncEngine {
       return 0;
     }
 
-    const response = await this.transport.push(copies, wishes, photos);
+    const response = await this.transport.push(
+      copies,
+      wishes,
+      photos,
+      await this.catalogueFor(copies),
+    );
     // Adopt whatever the server decided, so the two sides are byte-identical afterwards
     // and the next push does not resend the same records.
     for (const merged of response.copies) {
