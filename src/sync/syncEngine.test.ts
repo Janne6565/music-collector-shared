@@ -286,14 +286,14 @@ describe("SyncEngine", () => {
       expect(result.releases).toBe(0);
     });
 
-    it("offers the server the catalogue it is missing, once", async () => {
+    it("offers the server the catalogue it is missing, and stops once it took them", async () => {
       // The device that made the copies is the only one still holding their releases: the
       // mirror never saw them, and for a Discogs id it can never fetch them either.
       await store.writeSetting("catalogueOffered", "false");
       await store.cacheReleases([release]);
       await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
-      // The mirror answers about nothing, which is exactly the state being repaired.
-      fetchReleases.mockResolvedValue([]);
+      // Asked before the offer and again after it: nothing, then the release it just took.
+      fetchReleases.mockResolvedValueOnce([]).mockResolvedValueOnce([release]);
 
       await engine.sync();
 
@@ -305,6 +305,22 @@ describe("SyncEngine", () => {
       push.mockClear();
       await engine.sync();
       expect(push.mock.calls.every((call) => (call[3] as Release[]).length === 0)).toBe(true);
+    });
+
+    it("offers again when the server took the push but stored nothing", async () => {
+      // A server too old to know the field answers 200 and changes nothing. Counting that
+      // as done would spend the single offer a collection gets on absolutely nothing.
+      await store.writeSetting("catalogueOffered", "false");
+      await store.cacheReleases([release]);
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockResolvedValue([]);
+
+      await engine.sync();
+      expect(push.mock.calls.some((call) => (call[3] as Release[]).length > 0)).toBe(true);
+
+      push.mockClear();
+      await engine.sync();
+      expect(push.mock.calls.some((call) => (call[3] as Release[]).length > 0)).toBe(true);
     });
 
     it("offers nothing the mirror can already answer for", async () => {

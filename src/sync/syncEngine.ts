@@ -276,6 +276,12 @@ export class SyncEngine {
     return [...(await this.store.getReleases(wanted)).values()];
   }
 
+  /** Which of these releases the mirror can answer for, by id. */
+  private async mirrored(releases: readonly Release[]): Promise<Set<string>> {
+    const answered = await this.transport.fetchReleases(releases.map((release) => release.id));
+    return new Set(answered.map((release) => release.id));
+  }
+
   /**
    * Hands the server the catalogue behind copies it already has, once per device.
    *
@@ -300,20 +306,24 @@ export class SyncEngine {
     }
 
     let offered = 0;
+    let landed = true;
     for (let from = 0; from < held.length; from += RELEASE_BATCH) {
       const batch = held.slice(from, from + RELEASE_BATCH);
-      const mirrored = new Set(
-        (await this.transport.fetchReleases(batch.map((release) => release.id))).map(
-          (release) => release.id,
-        ),
-      );
-      const unmirrored = batch.filter((release) => !mirrored.has(release.id));
+      const alreadyMirrored = await this.mirrored(batch);
+      const unmirrored = batch.filter((release) => !alreadyMirrored.has(release.id));
       if (unmirrored.length === 0) continue;
       await this.transport.push([], [], [], unmirrored);
-      offered += unmirrored.length;
+      // Asked again rather than assumed: a server too old to know the field answers 200 and
+      // stores nothing, and this device gets exactly one go at offering. Taking that as
+      // success is how the one repair a collection needs gets spent on nothing at all.
+      const after = await this.mirrored(unmirrored);
+      const accepted = unmirrored.filter((release) => after.has(release.id)).length;
+      offered += accepted;
+      if (accepted < unmirrored.length) landed = false;
     }
-    // Only once it has actually got through: a pass that threw has to be able to try again.
-    await this.store.writeSetting(CATALOGUE_OFFERED, "true");
+    // Only once the mirror can actually answer for them. A pass that threw, or one the
+    // server quietly ignored, has to be able to say the same thing again next sync.
+    if (landed) await this.store.writeSetting(CATALOGUE_OFFERED, "true");
     return offered;
   }
 
