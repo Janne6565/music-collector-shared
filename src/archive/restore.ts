@@ -3,6 +3,7 @@ import { mergeCopies, mergePhotos, mergeWishlistItems } from "../domain/merge.js
 import type { Photo } from "../domain/types.js";
 import type { LocalStore } from "../local/LocalStore.js";
 import type { ClockSource } from "../local/copyWrites.js";
+import { rememberArchivedAlbumCovers } from "./albumCovers.js";
 import { type McArchiveContents, McArchiveError, readMcArchive } from "./mcArchive.js";
 
 /**
@@ -31,6 +32,14 @@ export interface McImportResult {
    * in the strip, so it is skipped and counted.
    */
   readonly photosWithoutBytes: number;
+  /**
+   * Wishlist album covers taken from the archive.
+   *
+   * Kept as a fallback, not as truth: a live answer from this deployment's own mirror
+   * always wins. They exist so that importing where the albums are unknown does not leave
+   * a wishlist of blank silhouettes that never fills in.
+   */
+  readonly albumCovers: number;
 }
 
 export async function importMcArchive(
@@ -55,6 +64,8 @@ export async function applyMcArchive(
     const local = await store.getCopyIncludingDeleted(copy.id);
     await store.putCopy(mergeCopies(local, copy));
   }
+
+  await rememberArchivedAlbumCovers(store, manifest.albumCovers ?? {});
 
   for (const wish of manifest.wishes) {
     const local = await store.getWishlistItemIncludingDeleted(wish.id);
@@ -86,6 +97,7 @@ export async function applyMcArchive(
     releases: manifest.releases.length,
     photos,
     photosWithoutBytes,
+    albumCovers: Object.keys(manifest.albumCovers ?? {}).length,
   };
 }
 

@@ -4,6 +4,11 @@ import { applyCopyPatch, createCopy } from "../local/copyWrites.js";
 import { createPhoto } from "../local/photoWrites.js";
 import { createWishlistItem } from "../local/wishWrites.js";
 import { MemoryStore } from "../testing/MemoryStore.js";
+import {
+  readArchivedAlbumCovers,
+  rememberArchivedAlbumCovers,
+  withArchivedCovers,
+} from "./albumCovers.js";
 import { exportMcArchive } from "./collect.js";
 import { MC_MANIFEST_PATH, McArchiveError, mcFileName, readMcArchive } from "./mcArchive.js";
 import { importMcArchive } from "./restore.js";
@@ -100,12 +105,15 @@ function readerFor(store: MemoryStore) {
   };
 }
 
-async function archiveOf(store: MemoryStore) {
+async function archiveOf(store: MemoryStore, covers?: Record<string, string | null>) {
   return await exportMcArchive(
     store,
     { collection: "releaseId\r\n", wishlist: "albumId\r\n" },
     readerFor(store),
     AT,
+    covers === undefined
+      ? undefined
+      : async (ids) => new Map(ids.map((id) => [id, covers[id] ?? null])),
   );
 }
 
@@ -312,5 +320,146 @@ describe("importing a .mc", () => {
     const result = await importMcArchive(restored, archive, clockSource("device-b"));
 
     expect(result).toMatchObject({ copies: 1, photos: 0, photosWithoutBytes: 0 });
+  });
+});
+
+/**
+ * A wish's cover is the one thing in the archive that is not in the collection.
+ *
+ * It lives in the server's release mirror, which is per-deployment — so an archive
+ * exported where the albums are known and imported where they are not showed a wishlist
+ * of blank silhouettes, and never recovered.
+ */
+describe("wishlist album covers", () => {
+  const COVER = "https://coverartarchive.org/release-group/a-2/front-500";
+
+  it("carries the cover the exporting device could resolve", async () => {
+    const { store } = await seeded();
+
+    const built = await archiveOf(store, { "musicbrainz:a-2": COVER });
+
+    expect(built.albumCovers).toBe(1);
+    const manifest = JSON.parse(
+      decodeUtf8(
+        readZip(built.bytes).find((e) => e.path === MC_MANIFEST_PATH)?.bytes ?? new Uint8Array(),
+      ),
+    );
+    expect(manifest.albumCovers).toEqual({ "musicbrainz:a-2": COVER });
+  });
+
+  it("asks only about wishes, and never about a hand-entered album", async () => {
+    const { store, clock } = await seeded();
+    await store.putWishlistItem(
+      createWishlistItem(
+        {
+          albumId: "local:made-up",
+          title: "A bootleg",
+          artistName: "Nobody",
+          year: null,
+          desiredFormat: null,
+          note: null,
+        },
+        clock,
+        1_900,
+        "wish-local",
+      ),
+    );
+    const asked: string[][] = [];
+
+    await exportMcArchive(
+      store,
+      { collection: "", wishlist: "" },
+      readerFor(store),
+      AT,
+      async (ids) => {
+        asked.push([...ids]);
+        return new Map();
+      },
+    );
+
+    expect(asked).toEqual([["musicbrainz:a-2"]]);
+  });
+
+  it("still writes the archive when the lookup fails", async () => {
+    const { store } = await seeded();
+
+    const built = await exportMcArchive(
+      store,
+      { collection: "", wishlist: "" },
+      readerFor(store),
+      AT,
+      async () => {
+        throw new Error("offline");
+      },
+    );
+
+    expect(built.albumCovers).toBe(0);
+    expect(built.copies).toBe(1);
+  });
+
+  it("keeps them on import, where the importing deployment cannot resolve one", async () => {
+    const { store } = await seeded();
+    const built = await archiveOf(store, { "musicbrainz:a-2": COVER });
+    const restored = new MemoryStore();
+
+    const result = await importMcArchive(restored, built.bytes, clockSource("device-b"));
+
+    expect(result.albumCovers).toBe(1);
+    expect(await readArchivedAlbumCovers(restored)).toEqual({ "musicbrainz:a-2": COVER });
+  });
+
+  it("fills a null the server could not answer, which is the whole point", () => {
+    // What prod returns for an album its mirror has never seen: present, but null.
+    const live = new Map([["musicbrainz:a-2", null]]);
+
+    expect(withArchivedCovers(live, { "musicbrainz:a-2": COVER }).get("musicbrainz:a-2")).toBe(
+      COVER,
+    );
+  });
+
+  it("never overrides a cover this deployment resolved itself", () => {
+    const live = new Map([["musicbrainz:a-2", "https://live/one.jpg"]]);
+
+    expect(withArchivedCovers(live, { "musicbrainz:a-2": COVER }).get("musicbrainz:a-2")).toBe(
+      "https://live/one.jpg",
+    );
+  });
+
+  it("merges archives rather than replacing what an earlier one left", async () => {
+    const store = new MemoryStore();
+
+    await rememberArchivedAlbumCovers(store, { "album-1": "one.jpg" });
+    await rememberArchivedAlbumCovers(store, { "album-2": "two.jpg" });
+
+    expect(await readArchivedAlbumCovers(store)).toEqual({
+      "album-1": "one.jpg",
+      "album-2": "two.jpg",
+    });
+  });
+
+  it("treats an unreadable cache as an empty one", async () => {
+    const store = new MemoryStore();
+    await store.writeSetting("archivedAlbumCovers", "{not json");
+
+    expect(await readArchivedAlbumCovers(store)).toEqual({});
+  });
+
+  it("reads an archive written before covers existed", async () => {
+    const older = writeZip(
+      [
+        {
+          path: MC_MANIFEST_PATH,
+          bytes: encodeUtf8(
+            JSON.stringify({ app: "music-collector", formatVersion: 1, copies: [], wishes: [] }),
+          ),
+        },
+      ],
+      AT,
+    );
+    const restored = new MemoryStore();
+
+    const result = await importMcArchive(restored, older, clockSource("device-b"));
+
+    expect(result.albumCovers).toBe(0);
   });
 });

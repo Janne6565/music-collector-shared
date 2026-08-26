@@ -32,6 +32,7 @@ export * from "./sync/transport.js";
 
 // The `.mc` archive: the collection, its photographs and its clocks in one portable file.
 export * from "./archive/zip.js";
+export * from "./archive/albumCovers.js";
 export * from "./archive/mcArchive.js";
 export * from "./archive/collect.js";
 export * from "./archive/restore.js";

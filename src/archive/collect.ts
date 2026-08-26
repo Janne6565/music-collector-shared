@@ -1,4 +1,5 @@
 import type { LocalStore } from "../local/LocalStore.js";
+import { type AlbumCovers, albumsNeedingCovers } from "./albumCovers.js";
 import { type McPhotoBytes, buildMcArchive } from "./mcArchive.js";
 
 /**
@@ -19,6 +20,19 @@ import { type McPhotoBytes, buildMcArchive } from "./mcArchive.js";
  */
 export type PhotoByteReader = (photoId: string) => Promise<Uint8Array | undefined>;
 
+/**
+ * Resolving the wishlist's album covers, which only the app can do.
+ *
+ * The one part of an export that *is* a request. A wish's cover lives in the server's
+ * mirror rather than in the collection, so an archive that did not ask would be complete
+ * about everything except the pictures on the wishlist — which is precisely what goes
+ * missing when the file is imported somewhere else. Best-effort: offline, or a deployment
+ * that cannot answer, simply produces an archive with no covers, exactly as before.
+ */
+export type AlbumCoverResolver = (
+  albumIds: readonly string[],
+) => Promise<ReadonlyMap<string, string | null>>;
+
 export interface McExportCsv {
   readonly collection: string;
   readonly wishlist: string;
@@ -38,6 +52,8 @@ export interface McExport {
    * "your backup is missing four photographs" is not something to find out later.
    */
   readonly photosWithoutBytes: number;
+  /** Wishlist albums the archive carries a cover for. */
+  readonly albumCovers: number;
 }
 
 export async function exportMcArchive(
@@ -45,6 +61,7 @@ export async function exportMcArchive(
   csv: McExportCsv,
   readPhotoBytes: PhotoByteReader,
   exportedAt: Date,
+  resolveAlbumCovers?: AlbumCoverResolver,
 ): Promise<McExport> {
   const copies = await store.listCopies();
   const wishes = await store.listWishlist();
@@ -64,6 +81,8 @@ export async function exportMcArchive(
     photoBytes.push({ photoId: photo.id, contentType: photo.contentType, bytes });
   }
 
+  const albumCovers = await resolveCovers(wishes, resolveAlbumCovers);
+
   return {
     bytes: buildMcArchive({
       exportedAt,
@@ -71,6 +90,7 @@ export async function exportMcArchive(
       releases: [...releases.values()],
       wishes,
       photos,
+      albumCovers,
       photoBytes,
       collectionCsv: csv.collection,
       wishlistCsv: csv.wishlist,
@@ -79,5 +99,23 @@ export async function exportMcArchive(
     wishes: wishes.length,
     photos: photoBytes.length,
     photosWithoutBytes,
+    albumCovers: Object.keys(albumCovers).length,
   };
+}
+
+async function resolveCovers(
+  wishes: readonly { readonly albumId: string }[],
+  resolve: AlbumCoverResolver | undefined,
+): Promise<AlbumCovers> {
+  const albumIds = albumsNeedingCovers(wishes);
+  if (resolve === undefined || albumIds.length === 0) return {};
+
+  // Swallowed on purpose: a cover is decoration, and an export that refused to write the
+  // collection because a picture could not be looked up would be the wrong trade entirely.
+  const resolved = await resolve(albumIds).catch(() => new Map<string, string | null>());
+  const covers: Record<string, string> = {};
+  for (const [albumId, url] of resolved) {
+    if (url !== null && url !== "") covers[albumId] = url;
+  }
+  return covers;
 }

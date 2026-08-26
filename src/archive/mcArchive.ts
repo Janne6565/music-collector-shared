@@ -1,4 +1,5 @@
 import type { Copy, Photo, Release, WishlistItem } from "../domain/types.js";
+import type { AlbumCovers } from "./albumCovers.js";
 import { type ZipEntry, ZipError, decodeUtf8, encodeUtf8, readZip, writeZip } from "./zip.js";
 
 /**
@@ -55,6 +56,20 @@ export interface McManifest {
   readonly wishes: readonly WishlistItem[];
   /** Metadata only; the bytes are the `photos/` entries, keyed by the photo's id. */
   readonly photos: readonly Photo[];
+  /**
+   * Album id to cover URL, for the wishlist.
+   *
+   * A wish names an album and artwork belongs to a pressing, so the cover is resolved by
+   * the server from its own mirror — which is per-deployment. Without this, an archive
+   * imported anywhere its albums are unknown shows a wishlist of blank silhouettes, and
+   * it never recovers. Carried as URLs rather than bytes because that is what the
+   * endpoint returns and what the client renders.
+   *
+   * Optional: archives written before this existed simply have none, which is why the
+   * format version did not move. An unknown key is ignored by an older reader, and a
+   * missing one reads as an empty map here.
+   */
+  readonly albumCovers?: AlbumCovers;
 }
 
 export interface McPhotoBytes {
@@ -69,6 +84,8 @@ export interface McArchiveInput {
   readonly releases: readonly Release[];
   readonly wishes: readonly WishlistItem[];
   readonly photos: readonly Photo[];
+  /** Resolved by the caller, which owns the API client; empty when it could not ask. */
+  readonly albumCovers: AlbumCovers;
   /** Only for photos whose bytes are actually on this device; the rest are metadata only. */
   readonly photoBytes: readonly McPhotoBytes[];
   /** The spreadsheet exports, rendered by the caller — each app owns its own CSV code. */
@@ -87,6 +104,7 @@ export function buildMcArchive(input: McArchiveInput): Uint8Array {
     releases: input.releases,
     wishes: input.wishes,
     photos: input.photos,
+    albumCovers: input.albumCovers,
   };
 
   const entries: ZipEntry[] = [
@@ -158,6 +176,7 @@ export function readMcArchive(archive: Uint8Array): McArchiveContents {
       releases: manifest.releases ?? [],
       wishes: manifest.wishes ?? [],
       photos: manifest.photos ?? [],
+      albumCovers: manifest.albumCovers ?? {},
     },
     photoBytes,
   };
