@@ -56,6 +56,22 @@ const release: Release = {
   cachedAt: 0,
 };
 
+/** One of many distinct releases, for the paths that only show up past a single page. */
+function releaseNumbered(index: number): Release {
+  return { ...release, id: `rel-${index}`, albumId: `group-${index}`, title: `Release ${index}` };
+}
+
+/** `count` copies, each naming a release of its own that this device does not hold. */
+async function adoptCopiesNaming(
+  store: MemoryStore,
+  clock: ClockSource,
+  count: number,
+): Promise<void> {
+  for (let index = 0; index < count; index += 1) {
+    await store.adoptCopy(createCopy(releaseNumbered(index), draft, clock, 1000, `copy-${index}`));
+  }
+}
+
 const draft = {
   condition: "VG_PLUS" as const,
   sleeveCondition: "NM" as const,
@@ -228,6 +244,53 @@ describe("SyncEngine", () => {
 
       expect(result.pulled).toBe(1);
       expect(await store.getCopy("copy-remote")).toBeDefined();
+    });
+
+    it("carries on to the later pages when one of them fails", async () => {
+      // Two pages' worth, so the first rejection used to end the whole refill and strand
+      // every record after it -- permanently, if the failing page was the first one.
+      await adoptCopiesNaming(store, clock, 150);
+      fetchReleases.mockRejectedValueOnce(new Error("offline"));
+      fetchReleases.mockResolvedValueOnce([releaseNumbered(120)]);
+
+      const result = await engine.sync();
+
+      expect(fetchReleases).toHaveBeenCalledTimes(2);
+      expect(await store.getRelease("rel-120")).toMatchObject({ title: "Release 120" });
+      expect(result.releases).toBe(1);
+    });
+
+    it("says the catalogue could not be reached, rather than reporting nothing missing", async () => {
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockRejectedValueOnce(new Error("offline"));
+
+      const result = await engine.sync();
+
+      expect(result.releasesUnreachable).toBe(true);
+      expect(result.releasesMissing).toBe(1);
+    });
+
+    it("counts the copies the mirror answered about but had no entry for", async () => {
+      // The mirror stays silent about ids it has never seen rather than failing, so this
+      // is a reachable server and a shelf that still cannot be described.
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockResolvedValueOnce([]);
+
+      const result = await engine.sync();
+
+      expect(result.releasesUnreachable).toBe(false);
+      expect(result.releasesMissing).toBe(1);
+      expect(result.releases).toBe(0);
+    });
+
+    it("reports nothing missing once the shelf can describe itself", async () => {
+      await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockResolvedValueOnce([release]);
+
+      const result = await engine.sync();
+
+      expect(result.releasesMissing).toBe(0);
+      expect(result.releasesUnreachable).toBe(false);
     });
   });
 });

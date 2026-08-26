@@ -33,7 +33,32 @@ export interface SyncResult {
    * leave that device showing placeholders until the next reload.
    */
   readonly releases: number;
+  /**
+   * How many copies still have no catalogue entry after this sync.
+   *
+   * The shelf draws one of these as an untitled placeholder in the generic silhouette, so
+   * a number above zero is the difference between "your collection is empty" and "your
+   * collection is here but this device cannot describe it yet" — the two look identical
+   * on screen and want opposite reactions from the user.
+   */
+  readonly releasesMissing: number;
+  /**
+   * Whether asking the mirror for catalogue entries failed outright.
+   *
+   * Separate from `releasesMissing` because the two are different problems wearing the
+   * same placeholder: a request that never landed is worth retrying and worth saying out
+   * loud, while an id the mirror simply does not hold will read the same on every attempt
+   * and is not the user's to fix.
+   */
+  readonly releasesUnreachable: boolean;
   readonly cursor: number;
+}
+
+/** What one pass of {@link SyncEngine.cacheMissingReleases} managed to do. */
+interface ReleaseRefill {
+  readonly cached: number;
+  readonly missing: number;
+  readonly unreachable: boolean;
 }
 
 export class SyncEngine {
@@ -106,7 +131,9 @@ export class SyncEngine {
     return {
       pulled: pulled.copies.length + pulled.wishes.length + pulled.photos.length,
       pushed,
-      releases,
+      releases: releases.cached,
+      releasesMissing: releases.missing,
+      releasesUnreachable: releases.unreachable,
       cursor: await this.store.readSyncCursor(),
     };
   }
@@ -182,7 +209,7 @@ export class SyncEngine {
    * releases, and it should heal on its next sync rather than only on the next new record.
    * The store is asked first, so the steady state is one local read and no request at all.
    */
-  private async cacheMissingReleases(): Promise<number> {
+  private async cacheMissingReleases(): Promise<ReleaseRefill> {
     const copies = await this.store.listCopies();
     const wanted = [
       ...new Set(
@@ -192,12 +219,13 @@ export class SyncEngine {
           .filter((releaseId) => !isManualReleaseId(releaseId)),
       ),
     ];
-    if (wanted.length === 0) return 0;
+    if (wanted.length === 0) return { cached: 0, missing: 0, unreachable: false };
 
     const held = await this.store.getReleases(wanted);
     const missing = wanted.filter((releaseId) => !held.has(releaseId));
 
     let cached = 0;
+    let unreachable = false;
     for (let from = 0; from < missing.length; from += RELEASE_BATCH) {
       const batch = missing.slice(from, from + RELEASE_BATCH);
       try {
@@ -205,12 +233,18 @@ export class SyncEngine {
         if (releases.length > 0) await this.store.cacheReleases(releases);
         cached += releases.length;
       } catch {
-        // Offline, or the mirror is down. The shelf shows placeholders until the next
-        // sync rather than failing the whole reconciliation over metadata.
-        return cached;
+        // Offline, the mirror is down, or this one page was rejected. Carry on with the
+        // rest rather than abandoning them: the batches are independent, and giving up on
+        // the first failure left a large collection with only the pages before it — the
+        // shelf then healed a hundred records per sync at best, and never at all if the
+        // very first page was the one that failed.
+        unreachable = true;
       }
     }
-    return cached;
+    // Recounted from what is actually held rather than subtracted from `cached`: the
+    // mirror answers with the releases it has and stays silent about the rest, so a page
+    // that returned fewer rows than it was asked for is a success and a shortfall at once.
+    return { cached, missing: missing.length - cached, unreachable };
   }
 
   /** Fetches the bytes for photos this device knows about but has never held. */
