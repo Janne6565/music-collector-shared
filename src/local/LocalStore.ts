@@ -67,6 +67,15 @@ export interface LocalStore {
    * like `listCoverPhotos` for the same reason, since the list asks for the whole screen.
    */
   listWishPhotos(wishIds: readonly string[]): Promise<Map<string, Photo>>;
+  /**
+   * Every live photo on the device, whoever owns it.
+   *
+   * For the `.mc` export, which has to put the whole shelf in one file. Deliberately not
+   * used by any screen: a screen asks for the photos of the thing it is drawing, and one
+   * that pulled the lot and filtered in JavaScript would get slower with every record
+   * added.
+   */
+  listAllPhotos(): Promise<Photo[]>;
   getPhotoIncludingDeleted(id: string): Promise<Photo | undefined>;
   /** Photos whose bytes are on this device but not yet in object storage. */
   listPhotosAwaitingUpload(): Promise<Photo[]>;

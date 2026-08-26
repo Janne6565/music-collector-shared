@@ -130,6 +130,21 @@ export class MemoryStore implements LocalStore {
     return covers;
   }
 
+  /**
+   * The raw bytes, without going through a `Blob`.
+   *
+   * jsdom's `Blob` has no `arrayBuffer`, and React Native's has no way to read the bytes
+   * at all — which is the very reason the export takes a byte reader rather than calling
+   * `getPhotoBytes` itself. Tests use this the way each app uses its own platform's route.
+   */
+  photoBuffer(id: string): ArrayBuffer | undefined {
+    return this.bytes.get(id)?.buffer;
+  }
+
+  async listAllPhotos(): Promise<Photo[]> {
+    return this.live(this.photos.values()).sort((a, b) => a.sortIndex - b.sortIndex);
+  }
+
   async getPhotoIncludingDeleted(id: string): Promise<Photo | undefined> {
     return this.photos.get(id);
   }

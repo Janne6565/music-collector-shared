@@ -30,6 +30,12 @@ export * from "./local/wishWrites.js";
 export * from "./sync/syncEngine.js";
 export * from "./sync/transport.js";
 
+// The `.mc` archive: the collection, its photographs and its clocks in one portable file.
+export * from "./archive/zip.js";
+export * from "./archive/mcArchive.js";
+export * from "./archive/collect.js";
+export * from "./archive/restore.js";
+
 // The motion set: plain values, spent as CSS on one client and Animated configs on the other.
 export * from "./motion.js";
 
