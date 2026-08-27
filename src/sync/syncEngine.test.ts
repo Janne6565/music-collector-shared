@@ -495,8 +495,12 @@ describe("photo bytes this device does not hold", () => {
   });
 
   function storedPhoto(id: string, storageKey: string | null) {
-    const photo = createPhoto({ copyId: "copy-1", contentType: "image/jpeg", byteSize: 10, sortIndex: 0 },
-      clockSource("a"), 1000, id);
+    const photo = createPhoto(
+      { copyId: "copy-1", contentType: "image/jpeg", byteSize: 10, sortIndex: 0 },
+      clockSource("a"),
+      1000,
+      id,
+    );
     return { ...photo, storageKey };
   }
 
