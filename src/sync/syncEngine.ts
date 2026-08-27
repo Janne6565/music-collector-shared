@@ -134,7 +134,7 @@ export class SyncEngine {
   /** A normal incremental sync: pull what is new, push what changed locally. */
   async sync(): Promise<SyncResult> {
     const pulled = await this.pullAll();
-    await this.downloadMissingPhotoBytes(pulled.photos);
+    await this.downloadMissingPhotoBytes();
     const releases = await this.cacheMissingReleases();
     try {
       await this.uploadUnmirroredCatalogue();
@@ -327,16 +327,29 @@ export class SyncEngine {
     return offered;
   }
 
-  /** Fetches the bytes for photos this device knows about but has never held. */
-  private async downloadMissingPhotoBytes(photos: readonly Photo[]): Promise<void> {
-    for (const photo of photos) {
+  /**
+   * Fetches the bytes for every photo this device knows about but has never held.
+   *
+   * Over the whole collection, not over the photos this pass happened to pull. Scoped to
+   * the pull it could only ever try once: a row that arrived before its bytes existed, or
+   * whose download failed, cannot appear in a later pull, so "try again next sync" had no
+   * next attempt and the picture was gone for good.
+   *
+   * And a missing file does not look like a missing photo. The art component is handed an
+   * address for bytes that are not there, the image fails, and the copy falls back to the
+   * catalogue's cover — so a photo starred on another device silently shows the pressing's
+   * sleeve instead, and a hand-entered record, which has no catalogue to fall back to,
+   * shows its format silhouette for ever.
+   */
+  private async downloadMissingPhotoBytes(): Promise<void> {
+    for (const photo of await this.store.listAllPhotos()) {
       if (photo.storageKey === null || photo.deletedAt !== null) continue;
-      if ((await this.store.getPhotoBytes(photo.id)) !== undefined) continue;
+      if (await this.store.hasPhotoBytes(photo.id)) continue;
       try {
         await this.transport.downloadPhoto(photo);
       } catch {
-        // Try again next sync. The strip shows a placeholder until then rather than
-        // failing the whole reconciliation over one image.
+        // Try again next sync — and now there really is one. The strip shows a placeholder
+        // until then rather than failing the whole reconciliation over one image.
       }
     }
   }

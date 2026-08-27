@@ -173,6 +173,10 @@ export class MemoryStore implements LocalStore {
       : new Blob([stored.buffer], { type: stored.contentType });
   }
 
+  async hasPhotoBytes(id: string): Promise<boolean> {
+    return this.bytes.has(id);
+  }
+
   async deletePhotoBytes(id: string): Promise<void> {
     this.bytes.delete(id);
   }

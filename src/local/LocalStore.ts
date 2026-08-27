@@ -92,6 +92,15 @@ export interface LocalStore {
   // IndexedDB is uneven across engines, and the pair reconstructs the Blob exactly.
   putPhotoBytes(id: string, buffer: ArrayBuffer, contentType: string): Promise<void>;
   getPhotoBytes(id: string): Promise<Blob | undefined>;
+  /**
+   * Whether this device is holding the bytes, without reading them.
+   *
+   * Its own question rather than `getPhotoBytes(id) !== undefined`, because answering it
+   * that way costs a full read of every picture on the device: the phone stores them as
+   * files and would decode each one from base64 to say yes or no. The sync sweep asks this
+   * about the whole collection on every pass.
+   */
+  hasPhotoBytes(id: string): Promise<boolean>;
   deletePhotoBytes(id: string): Promise<void>;
 
   listWishlist(): Promise<WishlistItem[]>;

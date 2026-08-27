@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hlcInitial, hlcTick } from "../domain/hlc.js";
 import type { Copy, Release } from "../domain/types.js";
 import { type ClockSource, createCopy, tombstoneCopy } from "../local/copyWrites.js";
+import { createPhoto } from "../local/photoWrites.js";
 import { MemoryStore } from "../testing/MemoryStore.js";
 import { SyncEngine } from "./syncEngine.js";
 import type { SyncTransport } from "./transport.js";
@@ -11,15 +12,16 @@ const push = vi.fn();
 const fetchReleases = vi.fn();
 
 /**
- * The engine's whole view of the network. Photo bytes are not exercised here — moving them
- * is each platform's own code, and what this file is about is what the engine does with
- * records it is given.
+ * The engine's whole view of the network. Carrying the bytes is each platform's own code;
+ * *deciding which bytes are missing* is the engine's, and that is exercised below.
  */
+const downloadPhoto = vi.fn();
+
 const transport: SyncTransport = {
   pull: (cursor) => pull(cursor),
   push: (copies, wishes, photos, releases) => push(copies, wishes, photos, releases),
   uploadPhoto: async () => null,
-  downloadPhoto: async () => {},
+  downloadPhoto: (photo) => downloadPhoto(photo),
   fetchReleases: (releaseIds) => fetchReleases(releaseIds),
 };
 
@@ -482,5 +484,47 @@ describe("deletes stay deleted", () => {
     await engine.sync();
 
     expect(await store.getCopy("copy-1")).toBeUndefined();
+  });
+});
+
+describe("photo bytes this device does not hold", () => {
+  beforeEach(() => {
+    downloadPhoto.mockReset();
+    fetchReleases.mockResolvedValue([]);
+    push.mockResolvedValue(undefined);
+  });
+
+  function storedPhoto(id: string, storageKey: string | null) {
+    const photo = createPhoto({ copyId: "copy-1", contentType: "image/jpeg", byteSize: 10, sortIndex: 0 },
+      clockSource("a"), 1000, id);
+    return { ...photo, storageKey };
+  }
+
+  it("fetches them for the whole collection, not just this pass's pull", async () => {
+    // The bug this replaced: the sweep ran over the photos a pull returned, so a row that
+    // arrived before its bytes existed — or whose download failed once — could never come
+    // up again, because it cannot appear in a later pull.
+    const store = new MemoryStore();
+    await store.adoptPhoto(storedPhoto("photo-old", "user/photo-old"));
+    pull.mockResolvedValue(EMPTY_PAGE);
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect(downloadPhoto).toHaveBeenCalledTimes(1);
+    expect(downloadPhoto.mock.calls[0]?.[0]?.id).toBe("photo-old");
+  });
+
+  it("leaves alone what it already holds, and what has no bytes to fetch", async () => {
+    const store = new MemoryStore();
+    await store.adoptPhoto(storedPhoto("photo-here", "user/photo-here"));
+    await store.putPhotoBytes("photo-here", new ArrayBuffer(4), "image/jpeg");
+    // Never uploaded: its bytes are on this device and nowhere else, so there is nothing
+    // to fetch and asking would 404 on every single sync.
+    await store.adoptPhoto(storedPhoto("photo-local", null));
+    pull.mockResolvedValue(EMPTY_PAGE);
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect(downloadPhoto).not.toHaveBeenCalled();
   });
 });
