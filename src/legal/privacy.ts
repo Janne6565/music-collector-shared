@@ -84,8 +84,8 @@ export const PRIVACY_POLICY: LegalDocument = {
           en: "Catalogue lookups: when you search or scan a barcode, the search term and your IP address are transmitted to the MusicBrainz Foundation (USA) and Discogs / Zink Media (USA), on the basis of Art. 6 (1) (b) GDPR and the standard contractual clauses. If you would rather avoid this, enter copies by hand — no lookup is then made.",
         },
         {
-          de: "E-Mail-Versand (Passwort zurücksetzen): über unseren eigenen Mail-Dienst auf derselben Infrastruktur. Anmeldung über Google oder Apple: dabei erfährt der jeweilige Anbieter, dass du dich bei Music Collector anmeldest. Keine Analyse-, Werbe- oder Tracking-Dienste, keine Nutzungsprofile, kein Verkauf von Daten.",
-          en: "E-mail delivery (password resets): through our own mail service on the same infrastructure. Signing in with Google or Apple: the provider concerned learns that you are signing in to Music Collector. No analytics, advertising or tracking services, no usage profiles, no sale of data.",
+          de: "E-Mail-Versand (Passwort zurücksetzen): über unseren eigenen Mail-Dienst auf derselben Infrastruktur. Anmeldung über Google oder Apple: dabei erfährt der jeweilige Anbieter, dass du dich bei Rekordo anmeldest. Keine Analyse-, Werbe- oder Tracking-Dienste, keine Nutzungsprofile, kein Verkauf von Daten.",
+          en: "E-mail delivery (password resets): through our own mail service on the same infrastructure. Signing in with Google or Apple: the provider concerned learns that you are signing in to Rekordo. No analytics, advertising or tracking services, no usage profiles, no sale of data.",
         },
       ],
     },

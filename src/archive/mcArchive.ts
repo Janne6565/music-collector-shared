@@ -42,6 +42,12 @@ export const MC_PHOTO_DIRECTORY = "photos/";
  */
 export interface McManifest {
   readonly formatVersion: number;
+  /**
+   * The format discriminator, deliberately still the pre-Rekordo name. It is written into
+   * every .mc file and checked on import, so changing it would make every archive a user
+   * has already exported unreadable -- for a string nobody ever sees, since it lives
+   * inside the zip. The user-visible name of the file is `rekordo-<date>.mc`.
+   */
   readonly app: "music-collector";
   readonly exportedAt: string;
   readonly copies: readonly Copy[];
@@ -142,7 +148,7 @@ export function readMcArchive(archive: Uint8Array): McArchiveContents {
 
   const manifestEntry = entries.find((entry) => entry.path === MC_MANIFEST_PATH);
   if (manifestEntry === undefined) {
-    throw new McArchiveError("Not a Music Collector archive: it has no collection.json");
+    throw new McArchiveError("Not a Rekordo archive: it has no collection.json");
   }
 
   let parsed: unknown;
@@ -153,7 +159,7 @@ export function readMcArchive(archive: Uint8Array): McArchiveContents {
   }
   const manifest = parsed as McManifest;
   if (manifest?.app !== "music-collector") {
-    throw new McArchiveError("Not a Music Collector archive");
+    throw new McArchiveError("Not a Rekordo archive");
   }
   if (manifest.formatVersion > MC_FORMAT_VERSION) {
     throw new McArchiveError(
@@ -222,7 +228,7 @@ function extensionFor(contentType: string): string {
   }
 }
 
-/** `music-collector-2026-08-26.mc` — the same shape the CSV exports already use. */
+/** `rekordo-2026-08-26.mc` — the same shape the CSV exports already use. */
 export function mcFileName(exportedAt: Date): string {
-  return `music-collector-${exportedAt.toISOString().slice(0, 10)}.${MC_EXTENSION}`;
+  return `rekordo-${exportedAt.toISOString().slice(0, 10)}.${MC_EXTENSION}`;
 }

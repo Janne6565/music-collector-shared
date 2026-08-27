@@ -1,7 +1,7 @@
 {
   "_comment": [
     "The specification for field-level copy merge, shared by three implementations:",
-    "music-collector-frontend, music-collector-mobile and the Java backend.",
+    "rekordo-frontend, rekordo-mobile and the Java backend.",
     "",
     "Hand-authored on purpose. If this were generated from one implementation, that",
     "implementation's bugs would become the contract. Every case here is a decision",

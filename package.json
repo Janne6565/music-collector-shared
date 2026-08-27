@@ -1,11 +1,11 @@
 {
-  "name": "@janne6565/music-collector-shared",
-  "version": "0.20.0",
-  "description": "Shared domain, merge and sync logic for the Music Collector web and mobile apps",
+  "name": "@janne6565/rekordo-shared",
+  "version": "0.21.0",
+  "description": "Shared domain, merge and sync logic for the Rekordo web and mobile apps",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Janne6565/music-collector-shared.git"
+    "url": "git+https://github.com/Janne6565/rekordo-shared.git"
   },
   "type": "module",
   "types": "./dist/index.d.ts",

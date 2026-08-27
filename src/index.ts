@@ -1,5 +1,5 @@
 /**
- * Everything the Music Collector web and mobile apps have to agree on exactly.
+ * Everything the Rekordo web and mobile apps have to agree on exactly.
  *
  * The rule for what belongs here: if the two apps computing it differently would make the
  * same collection converge differently, or store the same input as different values, it is

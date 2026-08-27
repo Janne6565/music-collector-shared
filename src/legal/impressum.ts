@@ -42,8 +42,8 @@ export const IMPRESSUM: LegalDocument = {
         ...(OPERATOR.phone === null
           ? [
               {
-                de: "Music Collector wird als privates Projekt betrieben; eine Rufnummer wird nicht veröffentlicht. Anfragen per E-Mail werden zeitnah beantwortet.",
-                en: "Music Collector is run as a private project and publishes no telephone number. E-mail enquiries are answered promptly.",
+                de: "Rekordo wird als privates Projekt betrieben; eine Rufnummer wird nicht veröffentlicht. Anfragen per E-Mail werden zeitnah beantwortet.",
+                en: "Rekordo is run as a private project and publishes no telephone number. E-mail enquiries are answered promptly.",
               },
             ]
           : [{ de: `Telefon: ${OPERATOR.phone}`, en: `Telephone: ${OPERATOR.phone}` }]),

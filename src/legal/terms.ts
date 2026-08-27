@@ -15,8 +15,8 @@ export const TERMS_OF_USE: LegalDocument = {
   effective: "2026-08-25",
   title: { de: "Nutzungsbedingungen", en: "Terms of use" },
   lede: {
-    de: "Allgemeine Geschäftsbedingungen für Music Collector",
-    en: "General terms and conditions for Music Collector",
+    de: "Allgemeine Geschäftsbedingungen für Rekordo",
+    en: "General terms and conditions for Rekordo",
   },
   summary: null,
   numbered: true,
@@ -27,7 +27,7 @@ export const TERMS_OF_USE: LegalDocument = {
       paragraphs: [
         {
           de: `Diese Bedingungen gelten für die Nutzung der Music-Collector-Apps und der Website, betrieben von ${OPERATOR.name}, ${OPERATOR.street}, ${OPERATOR.city}. Abweichende Bedingungen gelten nur, wenn sie ausdrücklich in Textform vereinbart wurden.`,
-          en: `These terms govern your use of the Music Collector apps and website, operated by ${OPERATOR.name}, ${OPERATOR.street}, ${OPERATOR.city}, Germany. Deviating terms apply only where expressly agreed in text form.`,
+          en: `These terms govern your use of the Rekordo apps and website, operated by ${OPERATOR.name}, ${OPERATOR.street}, ${OPERATOR.city}, Germany. Deviating terms apply only where expressly agreed in text form.`,
         },
       ],
     },
@@ -36,8 +36,8 @@ export const TERMS_OF_USE: LegalDocument = {
       heading: { de: "Der Dienst", en: "The service" },
       paragraphs: [
         {
-          de: "Mit Music Collector erfasst du die Musik, die du besitzt, führst eine Wunschliste und teilst Listen mit Personen deiner Wahl. Die Nutzung ist kostenlos. Ein Anspruch auf ununterbrochene Verfügbarkeit besteht nicht; Wartung und technische Störungen können den Dienst unterbrechen, und Funktionen können sich ändern oder entfallen.",
-          en: "Music Collector lets you record the music you own, keep a wishlist and share lists with people you choose. Use is free of charge. There is no claim to uninterrupted availability; maintenance and technical faults can interrupt the service, and features may change or be discontinued.",
+          de: "Mit Rekordo erfasst du die Musik, die du besitzt, führst eine Wunschliste und teilst Listen mit Personen deiner Wahl. Die Nutzung ist kostenlos. Ein Anspruch auf ununterbrochene Verfügbarkeit besteht nicht; Wartung und technische Störungen können den Dienst unterbrechen, und Funktionen können sich ändern oder entfallen.",
+          en: "Rekordo lets you record the music you own, keep a wishlist and share lists with people you choose. Use is free of charge. There is no claim to uninterrupted availability; maintenance and technical faults can interrupt the service, and features may change or be discontinued.",
         },
       ],
     },

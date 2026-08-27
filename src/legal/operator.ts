@@ -1,5 +1,5 @@
 /**
- * Who runs Music Collector, in the form German law asks for it.
+ * Who runs Rekordo, in the form German law asks for it.
  *
  * Shared rather than duplicated because an Impressum that says one thing on the website and
  * another in the app is worse than no Impressum: § 5 DDG wants one provider, identifiable.
@@ -33,7 +33,7 @@ export const OPERATOR: Operator = {
 /** The address block, one line per line, for anywhere that prints it whole. */
 export const OPERATOR_ADDRESS_LINES: readonly string[] = [
   OPERATOR.name,
-  "Music Collector",
+  "Rekordo",
   OPERATOR.street,
   OPERATOR.city,
   OPERATOR.country,

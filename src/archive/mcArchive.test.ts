@@ -184,7 +184,7 @@ describe("the .mc archive", () => {
   });
 
   it("names the file by the day it was exported", () => {
-    expect(mcFileName(AT)).toBe("music-collector-2026-08-26.mc");
+    expect(mcFileName(AT)).toBe("rekordo-2026-08-26.mc");
   });
 });
 

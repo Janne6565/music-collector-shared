@@ -1,8 +1,8 @@
-# music-collector-shared
+# rekordo-shared
 
-Everything the Music Collector [web](https://github.com/Janne6565/music-collector-frontend)
-and [mobile](https://github.com/Janne6565/music-collector-mobile) apps have to agree on
-exactly, published as `@janne6565/music-collector-shared`.
+Everything the Rekordo [web](https://github.com/Janne6565/rekordo-frontend)
+and [mobile](https://github.com/Janne6565/rekordo-mobile) apps have to agree on
+exactly, published as `@janne6565/rekordo-shared`.
 
 Both apps are local-first: each device holds the whole collection and reconciles it with
 the server field by field, last write wins, ordered by a hybrid logical clock. That only
@@ -32,7 +32,7 @@ and expo-sqlite on the device both implement `LocalStore`; each app implements
 
 `domain/merge-fixture.json` is the hand-authored merge contract, asserted by this package's
 suite *and* by the backend's Java suite. It is imported by consumers as
-`@janne6565/music-collector-shared/merge-fixture.json`. Change it in both repos or a suite
+`@janne6565/rekordo-shared/merge-fixture.json`. Change it in both repos or a suite
 fails — that is the point of it.
 
 ## Installing
