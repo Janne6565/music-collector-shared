@@ -43,7 +43,7 @@ export const TERMS_OF_USE: LegalDocument = {
     },
     {
       id: "account",
-      heading: { de: "Konto — oder kein Konto", en: "Account, or no account" },
+      heading: { de: "Konto, oder kein Konto", en: "Account, or no account" },
       paragraphs: [
         {
           de: "Du kannst die App ohne Konto nutzen; deine Daten bleiben dann auf deinem Gerät und werden nicht gesichert. Ein Konto setzt eine gültige E-Mail-Adresse und ein Passwort voraus, das du für dich behältst. Du musst mindestens 16 Jahre alt sein.",

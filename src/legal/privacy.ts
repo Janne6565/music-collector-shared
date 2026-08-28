@@ -52,8 +52,8 @@ export const PRIVACY_POLICY: LegalDocument = {
           en: "Technical data: IP address, timestamp and requested resource in server logs. Consent records: which document, in which version, was accepted when.",
         },
         {
-          de: "Ohne Konto bleiben Sammlungsdaten ausschließlich auf deinem Gerät. Es gibt dann keine Kopie bei uns — auch keine, die wir auf Anfrage herausgeben könnten.",
-          en: "Without an account your collection data stays on your device alone. There is then no copy with us — not even one we could hand over on request.",
+          de: "Ohne Konto bleiben Sammlungsdaten ausschließlich auf deinem Gerät. Es gibt dann keine Kopie bei uns, auch keine, die wir auf Anfrage herausgeben könnten.",
+          en: "Without an account your collection data stays on your device alone. There is then no copy with us, not even one we could hand over on request.",
         },
       ],
     },
@@ -80,8 +80,8 @@ export const PRIVACY_POLICY: LegalDocument = {
           en: `Hosting: ${HOSTING_PROCESSOR.name}, ${HOSTING_PROCESSOR.address}. Servers and photo storage are located in Germany; processing takes place under a data processing agreement pursuant to Art. 28 GDPR.`,
         },
         {
-          de: "Katalogabfragen: bei Suche und Barcode-Scan werden Suchbegriff und IP-Adresse an die MusicBrainz Foundation (USA) und Discogs / Zink Media (USA) übermittelt, gestützt auf Art. 6 Abs. 1 lit. b DSGVO und die Standardvertragsklauseln. Wer das vermeiden möchte, legt Exemplare von Hand an — dann findet keine Abfrage statt.",
-          en: "Catalogue lookups: when you search or scan a barcode, the search term and your IP address are transmitted to the MusicBrainz Foundation (USA) and Discogs / Zink Media (USA), on the basis of Art. 6 (1) (b) GDPR and the standard contractual clauses. If you would rather avoid this, enter copies by hand — no lookup is then made.",
+          de: "Katalogabfragen: bei Suche und Barcode-Scan werden Suchbegriff und IP-Adresse an die MusicBrainz Foundation (USA) und Discogs / Zink Media (USA) übermittelt, gestützt auf Art. 6 Abs. 1 lit. b DSGVO und die Standardvertragsklauseln. Wer das vermeiden möchte, legt Exemplare von Hand an, dann findet keine Abfrage statt.",
+          en: "Catalogue lookups: when you search or scan a barcode, the search term and your IP address are transmitted to the MusicBrainz Foundation (USA) and Discogs / Zink Media (USA), on the basis of Art. 6 (1) (b) GDPR and the standard contractual clauses. If you would rather avoid this, enter copies by hand, and no lookup is then made.",
         },
         {
           de: "E-Mail-Versand (Passwort zurücksetzen): über unseren eigenen Mail-Dienst auf derselben Infrastruktur. Anmeldung über Google oder Apple: dabei erfährt der jeweilige Anbieter, dass du dich bei Rekordo anmeldest. Keine Analyse-, Werbe- oder Tracking-Dienste, keine Nutzungsprofile, kein Verkauf von Daten.",
