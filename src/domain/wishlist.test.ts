@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Copy, Release, WishlistItem } from "./types.js";
 import {
   asWishFormat,
+  filterWishlist,
   hasManualOrder,
   manualOrderWrites,
   moveWish,
@@ -158,5 +159,33 @@ describe("wishSatisfiedBy", () => {
   it("ignores entries that are already gone", () => {
     const wishes = [wish({ id: "a", albumId: "album-a", deletedAt: 5 })];
     expect(wishSatisfiedBy(wishes, copy, release)).toBeUndefined();
+  });
+});
+
+describe("filterWishlist", () => {
+  const a = wish({ id: "a", title: "Tago Mago", artistName: "Can", note: "green label" });
+  const b = wish({ id: "b", title: "Selected Ambient Works", artistName: "Aphex Twin" });
+  const items = [a, b];
+
+  it("keeps everything when nothing is typed", () => {
+    expect(filterWishlist(items, "")).toEqual(items);
+    expect(filterWishlist(items, "   ")).toEqual(items);
+  });
+
+  it("matches the title and the artist, either case", () => {
+    expect(ids(filterWishlist(items, "tago"))).toEqual(["a"]);
+    expect(ids(filterWishlist(items, "APHEX"))).toEqual(["b"]);
+  });
+
+  it("matches the note, which is why the list has rows", () => {
+    expect(ids(filterWishlist(items, "green label"))).toEqual(["a"]);
+  });
+
+  it("leaves an entry with no note alone rather than tripping over it", () => {
+    expect(ids(filterWishlist(items, "ambient"))).toEqual(["b"]);
+  });
+
+  it("does not match the format somebody wants", () => {
+    expect(filterWishlist(items, "vinyl")).toEqual([]);
   });
 });

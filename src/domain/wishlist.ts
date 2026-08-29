@@ -150,3 +150,33 @@ export function wishSatisfiedBy(
       wish.deletedAt === null && wish.albumId === release.albumId && wishWantsFormat(wish, format),
   );
 }
+
+/**
+ * The list narrowed to the entries a typed term names.
+ *
+ * Matched on the title, the artist and the note — the three things the row actually shows.
+ * The note is in there because it is the reason the wishlist is a list of rows rather than
+ * a wall of sleeves: "original Spoon press, green label" is what somebody remembers about
+ * an entry, so it has to be a thing they can type.
+ *
+ * One substring over the three joined, which is what the library's search does. The two
+ * boxes look the same and sit in the same app, so a term that finds a record on one shelf
+ * and not the other would read as one of them being broken.
+ *
+ * The format is deliberately not searchable: "vinyl" is a chip's job, not a word to type,
+ * and folding it in would have every entry match the moment somebody types "c".
+ */
+export function filterWishlist(
+  items: readonly WishlistItem[],
+  term: string,
+): readonly WishlistItem[] {
+  const needle = term.trim().toLowerCase();
+  if (needle === "") return items;
+  return items.filter((item) =>
+    [item.title, item.artistName, item.note]
+      .filter((part): part is string => typeof part === "string")
+      .join(" ")
+      .toLowerCase()
+      .includes(needle),
+  );
+}
