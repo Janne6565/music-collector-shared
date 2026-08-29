@@ -364,6 +364,9 @@ export class SyncEngine {
     const copies: Copy[] = [];
     const wishes: WishlistItem[] = [];
     const photos: Photo[] = [];
+    // Photos this pass gives up on for good. Everything else left out of the batch stays
+    // pending and goes up on a later pass.
+    const dropped: string[] = [];
     for (const id of pendingIds) {
       const copy = await this.store.getCopyIncludingDeleted(id);
       if (copy !== undefined) {
@@ -376,14 +379,32 @@ export class SyncEngine {
         continue;
       }
       const photo = await this.store.getPhotoIncludingDeleted(id);
-      // A photo whose bytes never uploaded is not pushed: other devices would see a
-      // record they can never fetch. It stays pending until the upload succeeds.
-      if (photo !== undefined && (photo.storageKey !== null || photo.deletedAt !== null)) {
+      if (photo === undefined) continue;
+      if (photo.storageKey !== null) {
         photos.push(photo);
+      } else if (photo.deletedAt !== null) {
+        dropped.push(id);
       }
+      // A live photo whose bytes never uploaded is simply left pending: pushing it would
+      // show every other device a record it can never fetch, so it waits for the upload.
+      //
+      // A *deleted* one with no key is dropped, and that is the whole of the fix for a
+      // phone that could not push for days.
+      //
+      // It is a photo deleted before its upload finished. `listPhotosAwaitingUpload` skips
+      // tombstones, so the upload is never retried and the key stays null for ever, while
+      // the tombstone kept being pushed as a delete that had to replicate. But there is
+      // nothing on the far side to delete: a photo reaches the server by being uploaded,
+      // so one that never uploaded is a picture no other device has ever heard of. The
+      // tombstone was carrying a message about a record only this device knows -- and the
+      // server, whose storage_key column was NOT NULL, answered every push containing it
+      // with a 500. Push is one transaction and pending is only cleared on success, so
+      // that one row rolled back every copy and wish in the batch and came back a minute
+      // later to do it again. Deleting a photo one second after taking it froze the whole
+      // device's push.
     }
     if (copies.length === 0 && wishes.length === 0 && photos.length === 0) {
-      await this.store.writePendingIds([]);
+      await this.settlePending(dropped);
       return 0;
     }
 
@@ -407,8 +428,27 @@ export class SyncEngine {
     if (response.cursor > 0) {
       await this.store.writeSyncCursor(response.cursor);
     }
-    await this.store.writePendingIds([]);
+    await this.settlePending([
+      ...dropped,
+      ...copies.map((copy) => copy.id),
+      ...wishes.map((wish) => wish.id),
+      ...photos.map((photo) => photo.id),
+    ]);
     return copies.length + wishes.length + photos.length;
+  }
+
+  /**
+   * Forgets exactly what this pass settled, and nothing else.
+   *
+   * <p>Re-read rather than cleared: a push is a network round trip, and a record written
+   * while it was in flight was marked pending during it. Writing an empty set at the end
+   * threw that record away -- and nothing ever marks it pending a second time, so it lived
+   * on that device alone for ever while every screen showed it as saved.
+   */
+  private async settlePending(settled: readonly string[]): Promise<void> {
+    const done = new Set(settled);
+    const remaining = (await this.store.readPendingIds()).filter((id) => !done.has(id));
+    await this.store.writePendingIds(remaining);
   }
 
   /** Everything the device holds, of both kinds — they share one pending set. */

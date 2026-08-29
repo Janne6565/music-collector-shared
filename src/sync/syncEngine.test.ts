@@ -3,6 +3,7 @@ import { hlcInitial, hlcTick } from "../domain/hlc.js";
 import type { Copy, Release } from "../domain/types.js";
 import { type ClockSource, createCopy, tombstoneCopy } from "../local/copyWrites.js";
 import { createPhoto } from "../local/photoWrites.js";
+import { createWishlistItem } from "../local/wishWrites.js";
 import { MemoryStore } from "../testing/MemoryStore.js";
 import { SyncEngine } from "./syncEngine.js";
 import type { SyncTransport } from "./transport.js";
@@ -26,6 +27,24 @@ const transport: SyncTransport = {
 };
 
 const EMPTY_PAGE = { copies: [], wishes: [], photos: [], cursor: 0, hasMore: false };
+
+/** A minimal wishlist entry — the batch's other half, so a poisoned photo has company. */
+function wish(id: string) {
+  return createWishlistItem(
+    {
+      albumId: "group-1",
+      releaseId: null,
+      title: "Bitches Brew",
+      artistName: "Miles Davis",
+      year: 1970,
+      desiredFormat: null,
+      note: null,
+    },
+    clockSource("a"),
+    1000,
+    id,
+  );
+}
 
 function clockSource(node: string): ClockSource {
   let current = hlcInitial(node);
@@ -530,5 +549,81 @@ describe("photo bytes this device does not hold", () => {
     await new SyncEngine(store, clockSource("a"), transport).sync();
 
     expect(downloadPhoto).not.toHaveBeenCalled();
+  });
+});
+
+describe("a photo that never uploaded", () => {
+  beforeEach(() => {
+    push.mockReset();
+    pull.mockReset();
+    fetchReleases.mockReset();
+    fetchReleases.mockResolvedValue([]);
+    pull.mockResolvedValue(EMPTY_PAGE);
+    push.mockResolvedValue(EMPTY_PAGE);
+    downloadPhoto.mockReset();
+  });
+
+  function unuploaded(id: string, deletedAt: number | null) {
+    const photo = createPhoto(
+      { copyId: "copy-1", contentType: "image/jpeg", byteSize: 10, sortIndex: 0 },
+      clockSource("a"),
+      1000,
+      id,
+    );
+    return { ...photo, storageKey: null, deletedAt };
+  }
+
+  it("is dropped once deleted, instead of poisoning every later push", async () => {
+    // The bug: this row was pushed because it is a tombstone, the server's storage_key was
+    // NOT NULL, and push is one transaction — so it took every copy and wish in the batch
+    // down with it. The client only clears pending on success, so the same doomed batch
+    // came back a minute later, for days.
+    const store = new MemoryStore();
+    await store.putPhoto(unuploaded("photo-gone", 2000));
+    await store.putWishlistItem(wish("wish-1"));
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    const [, wishes, photos] = push.mock.calls[0] ?? [];
+    expect(photos).toEqual([]);
+    expect(wishes?.map((item: { id: string }) => item.id)).toEqual(["wish-1"]);
+    // Forgotten for good: there is nothing on the server to delete, because a photo only
+    // gets there by being uploaded.
+    expect(await store.readPendingIds()).toEqual([]);
+  });
+
+  it("stays pending while it is still live, so it goes up once the bytes land", async () => {
+    const store = new MemoryStore();
+    await store.putPhoto(unuploaded("photo-waiting", null));
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect(push).not.toHaveBeenCalled();
+    expect(await store.readPendingIds()).toEqual(["photo-waiting"]);
+  });
+});
+
+describe("a record written while the push is in flight", () => {
+  beforeEach(() => {
+    push.mockReset();
+    pull.mockReset();
+    fetchReleases.mockReset();
+  });
+
+  it("is kept pending rather than cleared with the batch", async () => {
+    // Clearing the whole set on success threw this away, and nothing marks a record
+    // pending twice: it lived on that device alone for ever while the UI showed it saved.
+    const store = new MemoryStore();
+    await store.putWishlistItem(wish("wish-early"));
+    pull.mockResolvedValue(EMPTY_PAGE);
+    fetchReleases.mockResolvedValue([]);
+    push.mockImplementation(async () => {
+      await store.putWishlistItem(wish("wish-mid-flight"));
+      return EMPTY_PAGE;
+    });
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect(await store.readPendingIds()).toEqual(["wish-mid-flight"]);
   });
 });
