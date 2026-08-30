@@ -181,6 +181,13 @@ export class MemoryStore implements LocalStore {
     this.bytes.delete(id);
   }
 
+  async listPendingScans(): Promise<{ copies: Copy[]; wishes: WishlistItem[] }> {
+    return {
+      copies: this.live(this.copies.values()).filter((copy) => copy.pendingBarcode !== null),
+      wishes: this.live(this.wishes.values()).filter((wish) => wish.pendingBarcode !== null),
+    };
+  }
+
   async listWishlist(): Promise<WishlistItem[]> {
     return this.live(this.wishes.values());
   }

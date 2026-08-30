@@ -103,6 +103,16 @@ export interface LocalStore {
   hasPhotoBytes(id: string): Promise<boolean>;
   deletePhotoBytes(id: string): Promise<void>;
 
+  /**
+   * Everything still waiting to find out what it is: copies and wishes carrying a
+   * `pendingBarcode`.
+   *
+   * One call for both, because the resolver runs once and asks the catalogue about a set
+   * of numbers — splitting it in two would look each barcode up twice whenever the same
+   * record was scanned onto the shelf and the wishlist in the same session.
+   */
+  listPendingScans(): Promise<{ copies: Copy[]; wishes: WishlistItem[] }>;
+
   listWishlist(): Promise<WishlistItem[]>;
   getWishlistItemIncludingDeleted(id: string): Promise<WishlistItem | undefined>;
   putWishlistItem(item: WishlistItem): Promise<void>;

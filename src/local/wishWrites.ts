@@ -7,6 +7,8 @@ export interface WishDraft {
   readonly albumId: string;
   /** The pressing that was picked, so the entry keeps that sleeve. Null when typed. */
   readonly releaseId: string | null;
+  /** Set only by a scan the catalogue could not be asked about yet; null everywhere else. */
+  readonly pendingBarcode?: string | null;
   readonly title: string;
   readonly artistName: string;
   readonly year: number | null;
@@ -36,7 +38,15 @@ export function createWishlistItem(
     WISH_MERGEABLE_FIELDS.map((field) => [field, stamp]),
   ) as WishlistItem["fieldClocks"];
 
-  return { id, ...draft, sortIndex: null, createdAt: now, deletedAt: null, fieldClocks };
+  return {
+    id,
+    ...draft,
+    pendingBarcode: draft.pendingBarcode ?? null,
+    sortIndex: null,
+    createdAt: now,
+    deletedAt: null,
+    fieldClocks,
+  };
 }
 
 /** Restamps only what changed, so concurrent edits to different fields both survive. */
@@ -86,4 +96,20 @@ export function restoreWishlistItem(item: WishlistItem, clock: ClockSource): Wis
     deletedAt: null,
     fieldClocks: { ...item.fieldClocks, deletedAt: hlcEncode(clock.next()) },
   };
+}
+
+/**
+ * The wish equivalent of {@link resolveScannedCopy}: one stamped write that names the
+ * record and stops the entry waiting for a name.
+ *
+ * The album, the pressing, the title and the artist all arrive from the same lookup, so
+ * they are restamped together — an entry that had half of them would show a title with no
+ * album to check "already wished for" against.
+ */
+export function resolveScannedWish(
+  item: WishlistItem,
+  resolved: Pick<WishDraft, "albumId" | "releaseId" | "title" | "artistName" | "year">,
+  clock: ClockSource,
+): WishlistItem {
+  return applyWishPatch(item, { ...resolved, pendingBarcode: null }, clock);
 }

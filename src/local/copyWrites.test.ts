@@ -73,6 +73,7 @@ describe("createCopy", () => {
         "manualTitle",
         "manualYear",
         "notes",
+        "pendingBarcode",
         "pricePaidCents",
         "purchasedAt",
         "purchasedOn",

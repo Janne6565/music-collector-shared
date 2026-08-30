@@ -1,3 +1,4 @@
+import { formatBarcode } from "./barcode.js";
 import type { Copy, ManualRelease, Release } from "./types.js";
 import { isManualReleaseId, manualReleaseId } from "./types.js";
 
@@ -24,7 +25,12 @@ export function manualRelease(copy: Copy): Release {
     // else, and grouping two of them because they happen to share a title would be a
     // guess the person never made.
     albumId: manualReleaseId(copy.id),
-    title: copy.manualTitle ?? "",
+    // A scan kept before it could be looked up has no title because nobody has one yet.
+    // Its digits stand in until it does: the shelf, the search and the archive all read a
+    // title off this, and a blank row would be a record you cannot pick out from the two
+    // beside it. It is replaced by the real title the moment the resolver names it.
+    title:
+      copy.manualTitle ?? (copy.pendingBarcode === null ? "" : formatBarcode(copy.pendingBarcode)),
     artistName: copy.manualArtist ?? "",
     year: copy.manualYear,
     format: copy.manualFormat ?? "OTHER",

@@ -44,6 +44,7 @@ function stampedCopy(
   clock: ClockSource,
   now: number,
   id: string,
+  pendingBarcode: string | null = null,
 ): Copy {
   const stamp = hlcEncode(clock.next());
   const fieldClocks = Object.fromEntries(
@@ -54,6 +55,7 @@ function stampedCopy(
     id,
     releaseId,
     ...manual,
+    pendingBarcode,
     condition: draft.condition,
     sleeveCondition: draft.sleeveCondition,
     catalogArt: draft.catalogArt,
@@ -90,12 +92,55 @@ export function createManualCopy(
 }
 
 /**
+ * Creates a copy from a barcode nobody could look up yet.
+ *
+ * A manual copy in every structural respect — its release id is its own, because until the
+ * lookup succeeds no catalogue release exists to point at — but with none of the pressing
+ * typed in, since nobody typed anything. What it does carry is the number and, when the
+ * person set one on the confirm card, the format; both survive the resolution, the format
+ * because {@link copyFormat} lets a copy disagree with the catalogue about the object in
+ * hand.
+ */
+export function createScannedCopy(
+  barcode: string,
+  format: Copy["manualFormat"],
+  draft: CopyDraft,
+  clock: ClockSource,
+  now: number,
+  id: string,
+): Copy {
+  return stampedCopy(
+    manualReleaseId(id),
+    { ...EMPTY_MANUAL_RELEASE, manualFormat: format },
+    draft,
+    clock,
+    now,
+    id,
+    barcode,
+  );
+}
+
+/**
+ * The write that turns an identified scan into an ordinary copy.
+ *
+ * One patch, so `releaseId` and `pendingBarcode` are restamped together: as two writes a
+ * device could crash between them and leave a copy that points at a release while still
+ * claiming to be waiting for one, and a merge with a peer mid-way through would make that
+ * state durable.
+ */
+export function resolveScannedCopy(copy: Copy, releaseId: string, clock: ClockSource): Copy {
+  return applyCopyPatch(copy, { releaseId, pendingBarcode: null }, clock);
+}
+
+/**
  * What an edit can change: the copy's own facts, and — on a manual copy — the pressing's.
  *
  * One patch type rather than two write paths, because the two are edited in the same form
  * and saved by the same press. `applyCopyPatch` restamps per key either way.
  */
-export type CopyPatch = Partial<CopyDraft & ManualRelease & Pick<Copy, "hidden">>;
+export type CopyPatch = Partial<
+  CopyDraft & ManualRelease & Pick<Copy, "hidden" | "releaseId" | "pendingBarcode">
+>;
 
 /**
  * Applies a patch, restamping only the fields whose value actually changed.

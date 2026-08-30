@@ -16,6 +16,7 @@ export * from "./domain/manualRelease.js";
 export * from "./domain/merge.js";
 export * from "./domain/money.js";
 export * from "./domain/passwordStrength.js";
+export * from "./domain/barcode.js";
 export * from "./domain/copyFormat.js";
 export * from "./domain/wishlist.js";
 export * from "./domain/preview.js";
@@ -27,8 +28,10 @@ export * from "./local/photoWrites.js";
 export * from "./local/wishWrites.js";
 
 // Reconciliation, and the platform seam it reaches the network through.
+export * from "./sync/pendingScans.js";
 export * from "./sync/syncEngine.js";
 export * from "./sync/transport.js";
+export * from "./sync/uploadRefusal.js";
 
 // The `.mc` archive: the collection, its photographs and its clocks in one portable file.
 export * from "./archive/zip.js";
@@ -47,4 +50,3 @@ export * from "./legal/documents.js";
 // Screen logic that must behave identically on both, though it is drawn differently.
 export * from "./detail/theme.js";
 export * from "./detail/useCopyEditorLogic.js";
-export * from "./sync/uploadRefusal.js";

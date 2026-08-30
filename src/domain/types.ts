@@ -124,6 +124,7 @@ export const COPY_MERGEABLE_FIELDS = [
   "manualLabel",
   "manualCatalogNumber",
   "manualFormat",
+  "pendingBarcode",
   "condition",
   "sleeveCondition",
   "catalogArt",
@@ -220,6 +221,23 @@ export interface Copy extends ManualRelease {
    */
   readonly releaseId: string;
   /**
+   * The barcode of a scan that has not been identified yet, or null once it has.
+   *
+   * Scanning is a camera reading digits, which works in a basement with no signal; naming
+   * the record behind those digits is a request to a catalogue, which does not. Rather
+   * than refuse the scan, the copy is created from what the phone genuinely knows — a
+   * number, and whichever format the person picked — and carries the barcode here until
+   * some device with a connection can look it up. Until then the copy is an ordinary
+   * manual copy with no title, so every screen already draws it without knowing about any
+   * of this.
+   *
+   * Mergeable, and deliberately paired with `releaseId` in the resolving write: whoever
+   * identifies it first clears this and sets the release under one stamp, so a second
+   * device resolving the same scan cannot leave a copy that both points at a release and
+   * still claims to be waiting for one.
+   */
+  readonly pendingBarcode: string | null;
+  /**
    * The media grade. Named `condition` rather than `mediaCondition` because it is the
    * field that already syncs — renaming it would have meant a coordinated rename of the
    * merge contract in three repositories for no gain.
@@ -290,6 +308,7 @@ export interface Copy extends ManualRelease {
 export const WISH_MERGEABLE_FIELDS = [
   "albumId",
   "releaseId",
+  "pendingBarcode",
   "title",
   "artistName",
   "year",
@@ -316,6 +335,16 @@ export interface WishlistItem {
    * Null for a hand-typed entry, and for every entry made before this field existed.
    */
   readonly releaseId: string | null;
+  /**
+   * The barcode of a scan sent here before it could be identified, mirroring
+   * {@link Copy.pendingBarcode}.
+   *
+   * A record you covet is scanned in the same basement as one you bought, and the two
+   * destinations are meant to be equal answers to the same question — so the wishlist has
+   * to be able to hold a number too. `title` and `artistName` are empty while this is set,
+   * which is what the list draws as an unnamed entry.
+   */
+  readonly pendingBarcode: string | null;
   readonly title: string;
   readonly artistName: string;
   readonly year: number | null;

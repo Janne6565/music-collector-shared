@@ -16,6 +16,7 @@ function wish(over: Partial<WishlistItem> & Pick<WishlistItem, "id">): WishlistI
   return {
     albumId: `album-${over.id}`,
     releaseId: null,
+    pendingBarcode: null,
     title: "Ege Bamyasi",
     artistName: "Can",
     year: 1972,

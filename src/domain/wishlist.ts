@@ -137,10 +137,15 @@ export function wishWantsFormat(wish: WishlistItem, format: Format): boolean {
  * Matched on the album and the format, never on the copy's identity: a wish points at the
  * record, and which pressing settled it is not something the entry ever claimed to know.
  * A hand-entered copy (`local:` release id) satisfies nothing — it has no album to match.
+ *
+ * Takes only the part of a copy it reads, so a caller that is about to *make* one can ask
+ * the same question of the same function: the scan review says "was on your wishlist" on a
+ * row before it is written, and a second, nearly-identical predicate for that is how the
+ * row and the write start disagreeing.
  */
 export function wishSatisfiedBy(
   wishes: readonly WishlistItem[],
-  copy: Copy,
+  copy: Pick<Copy, "manualFormat">,
   release: Release | undefined,
 ): WishlistItem | undefined {
   if (release === undefined) return undefined;
