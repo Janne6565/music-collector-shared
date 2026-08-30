@@ -1,6 +1,6 @@
 {
   "name": "@janne6565/rekordo-shared",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Shared domain, merge and sync logic for the Rekordo web and mobile apps",
   "license": "MIT",
   "repository": {
