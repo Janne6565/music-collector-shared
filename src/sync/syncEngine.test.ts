@@ -6,6 +6,7 @@ import { createPhoto } from "../local/photoWrites.js";
 import { createWishlistItem } from "../local/wishWrites.js";
 import { MemoryStore } from "../testing/MemoryStore.js";
 import { SyncEngine } from "./syncEngine.js";
+import { readUploadRefusal, writeUploadRefusal } from "./uploadRefusal.js";
 import type { SyncTransport } from "./transport.js";
 
 const pull = vi.fn();
@@ -18,10 +19,13 @@ const fetchReleases = vi.fn();
  */
 const downloadPhoto = vi.fn();
 
+/** Null by default: "the bytes are not on this device", which is not a failure. */
+const uploadPhoto = vi.fn<SyncTransport["uploadPhoto"]>(async () => null);
+
 const transport: SyncTransport = {
   pull: (cursor) => pull(cursor),
   push: (copies, wishes, photos, releases) => push(copies, wishes, photos, releases),
-  uploadPhoto: async () => null,
+  uploadPhoto: (photo) => uploadPhoto(photo),
   downloadPhoto: (photo) => downloadPhoto(photo),
   fetchReleases: (releaseIds) => fetchReleases(releaseIds),
 };
@@ -625,5 +629,91 @@ describe("a record written while the push is in flight", () => {
     await new SyncEngine(store, clockSource("a"), transport).sync();
 
     expect(await store.readPendingIds()).toEqual(["wish-mid-flight"]);
+  });
+});
+
+describe("an upload the server refuses", () => {
+  beforeEach(() => {
+    uploadPhoto.mockReset();
+    downloadPhoto.mockReset();
+    pull.mockResolvedValue(EMPTY_PAGE);
+    // A real answer, not undefined: once an upload succeeds the photo is marked and the
+    // metadata push behind it actually runs.
+    push.mockResolvedValue({ ...EMPTY_PAGE });
+    fetchReleases.mockResolvedValue([]);
+  });
+
+  function pending(id: string) {
+    const photo = createPhoto(
+      { copyId: "copy-1", contentType: "image/jpeg", byteSize: 10, sortIndex: 0 },
+      clockSource("a"),
+      1000,
+      id,
+    );
+    return { ...photo, storageKey: null };
+  }
+
+  async function withPending(ids: readonly string[]) {
+    const store = new MemoryStore();
+    for (const id of ids) {
+      await store.adoptPhoto(pending(id));
+      await store.putPhotoBytes(id, new ArrayBuffer(4), "image/jpeg");
+    }
+    return store;
+  }
+
+  it("remembers a full account, because that never fixes itself", async () => {
+    const store = await withPending(["photo-1"]);
+    uploadPhoto.mockRejectedValue(Object.assign(new Error("507"), { status: 507 }));
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect(await readUploadRefusal(store)).toMatchObject({ reason: "full", photoId: "photo-1" });
+  });
+
+  it("keeps quiet about being offline, which does", async () => {
+    // The photo is kept and the next sync tries again. Saying anything here would be noise
+    // about something that resolves on its own.
+    const store = await withPending(["photo-1"]);
+    uploadPhoto.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect(await readUploadRefusal(store)).toBeNull();
+  });
+
+  it("names the first photo refused, not the last", async () => {
+    // A full account refuses everything behind it for the same reason, and the last one is
+    // a worse answer to "which photo is stuck" than the first.
+    const store = await withPending(["photo-1", "photo-2"]);
+    uploadPhoto.mockRejectedValue(Object.assign(new Error("507"), { status: 507 }));
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect((await readUploadRefusal(store))?.photoId).toBe("photo-1");
+  });
+
+  it("forgets it as soon as anything gets through", async () => {
+    const store = await withPending(["photo-1"]);
+    await writeUploadRefusal(store, { reason: "full", photoId: "photo-old", at: 1 });
+    uploadPhoto.mockResolvedValue({ storageKey: "user/photo-1" });
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect(await readUploadRefusal(store)).toBeNull();
+  });
+
+  it("lets one success outrank a refusal seen in the same pass", async () => {
+    // An account that just freed space can take some photos and still be full for the rest.
+    // "Full" is only honest once nothing at all gets through, and this is what makes the
+    // banner leave by itself.
+    const store = await withPending(["photo-1", "photo-2"]);
+    uploadPhoto
+      .mockRejectedValueOnce(Object.assign(new Error("507"), { status: 507 }))
+      .mockResolvedValueOnce({ storageKey: "user/photo-2" });
+
+    await new SyncEngine(store, clockSource("a"), transport).sync();
+
+    expect(await readUploadRefusal(store)).toBeNull();
   });
 });

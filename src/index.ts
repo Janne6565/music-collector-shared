@@ -47,3 +47,4 @@ export * from "./legal/documents.js";
 // Screen logic that must behave identically on both, though it is drawn differently.
 export * from "./detail/theme.js";
 export * from "./detail/useCopyEditorLogic.js";
+export * from "./sync/uploadRefusal.js";

@@ -9,6 +9,13 @@ import {
 import type { LocalStore } from "../local/LocalStore.js";
 import { type ClockSource, tombstoneCopy } from "../local/copyWrites.js";
 import { markUploaded } from "../local/photoWrites.js";
+import {
+  type UploadRefusal,
+  clearUploadRefusal,
+  httpStatusOf,
+  refusalReasonFor,
+  writeUploadRefusal,
+} from "./uploadRefusal.js";
 import { tombstoneWishlistItem } from "../local/wishWrites.js";
 import type { SyncTransport } from "./transport.js";
 
@@ -196,18 +203,48 @@ export class SyncEngine {
    *
    * Runs before the metadata push on purpose: a photo record with no storageKey is one
    * other devices can see but never fetch, so the bytes have to land first.
+   *
+   * Two kinds of failure, and the difference is the whole of design 28d. An upload that
+   * fails because the network is down, or because storage is having a bad minute, is not
+   * news: the photo is kept, the next sync tries again, and saying anything would be noise
+   * about something that fixes itself. An upload the *server refuses* is the opposite. The
+   * account is full or the picture is too big, neither ever resolves on its own, and
+   * retrying in silence is how a photo lives on one phone for two days while the person who
+   * took it believes it is backed up.
+   *
+   * So the refusals are remembered and everything else still is not.
    */
   private async uploadPendingPhotos(): Promise<void> {
+    let uploadedSomething = false;
+    let refused: UploadRefusal | null = null;
+
     for (const photo of await this.store.listPhotosAwaitingUpload()) {
       try {
         const uploaded = await this.transport.uploadPhoto(photo);
         if (uploaded === null) continue;
         await this.store.putPhoto(markUploaded(photo, uploaded.storageKey, this.clock));
-      } catch {
-        // Offline, too large, or storage is down. The photo stays local and the next sync
-        // tries again; nothing is lost and the picture still shows on this device.
+        uploadedSomething = true;
+      } catch (error) {
+        const reason = refusalReasonFor(httpStatusOf(error));
+        // Offline, or storage is down. The photo stays local and the next sync tries again;
+        // nothing is lost and the picture still shows on this device.
+        if (reason === null) continue;
+        // The first refusal of the batch is the one kept. A full account refuses every
+        // photo behind it for the same reason, and the last one is no more informative than
+        // the first while being a worse answer to "which photo is stuck".
+        refused ??= { reason, photoId: photo.id, at: Date.now() };
       }
     }
+
+    // A successful upload is the only proof there is room again, and it outranks a refusal
+    // seen earlier in the same pass: an account that just freed space can take some photos
+    // and still be full for the rest, and "full" is the honest reading only once nothing
+    // gets through. This is also what makes the banner leave by itself (28e).
+    if (uploadedSomething) {
+      await clearUploadRefusal(this.store);
+      return;
+    }
+    if (refused !== null) await writeUploadRefusal(this.store, refused);
   }
 
   /**
