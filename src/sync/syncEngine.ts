@@ -9,6 +9,8 @@ import {
 import type { LocalStore } from "../local/LocalStore.js";
 import { type ClockSource, tombstoneCopy } from "../local/copyWrites.js";
 import { markUploaded } from "../local/photoWrites.js";
+import { tombstoneWishlistItem } from "../local/wishWrites.js";
+import type { SyncTransport } from "./transport.js";
 import {
   type UploadRefusal,
   clearUploadRefusal,
@@ -16,8 +18,6 @@ import {
   refusalReasonFor,
   writeUploadRefusal,
 } from "./uploadRefusal.js";
-import { tombstoneWishlistItem } from "../local/wishWrites.js";
-import type { SyncTransport } from "./transport.js";
 
 /**
  * Reconciles the local store with the server.

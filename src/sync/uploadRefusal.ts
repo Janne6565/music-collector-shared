@@ -82,10 +82,7 @@ export async function readUploadRefusal(store: LocalStore): Promise<UploadRefusa
   }
 }
 
-export async function writeUploadRefusal(
-  store: LocalStore,
-  refusal: UploadRefusal,
-): Promise<void> {
+export async function writeUploadRefusal(store: LocalStore, refusal: UploadRefusal): Promise<void> {
   await store.writeSetting(PHOTO_UPLOAD_REFUSAL, JSON.stringify(refusal));
 }
 

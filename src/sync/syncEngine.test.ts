@@ -6,8 +6,8 @@ import { createPhoto } from "../local/photoWrites.js";
 import { createWishlistItem } from "../local/wishWrites.js";
 import { MemoryStore } from "../testing/MemoryStore.js";
 import { SyncEngine } from "./syncEngine.js";
-import { readUploadRefusal, writeUploadRefusal } from "./uploadRefusal.js";
 import type { SyncTransport } from "./transport.js";
+import { readUploadRefusal, writeUploadRefusal } from "./uploadRefusal.js";
 
 const pull = vi.fn();
 const push = vi.fn();
