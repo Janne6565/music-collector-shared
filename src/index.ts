@@ -28,6 +28,7 @@ export * from "./local/photoWrites.js";
 export * from "./local/wishWrites.js";
 
 // Reconciliation, and the platform seam it reaches the network through.
+export * from "./sync/conflict.js";
 export * from "./sync/pendingScans.js";
 export * from "./sync/syncEngine.js";
 export * from "./sync/transport.js";

@@ -1,3 +1,4 @@
+import { copyFormat } from "../domain/copyFormat.js";
 import { mergeCopies, mergePhotos, mergeWishlistItems } from "../domain/merge.js";
 import {
   type Copy,
@@ -7,9 +8,18 @@ import {
   isManualReleaseId,
 } from "../domain/types.js";
 import type { LocalStore } from "../local/LocalStore.js";
-import { type ClockSource, tombstoneCopy } from "../local/copyWrites.js";
+import { type CopyPatch, applyCopyPatch, tombstoneCopy } from "../local/copyWrites.js";
+import type { ClockSource } from "../local/copyWrites.js";
 import { markUploaded } from "../local/photoWrites.js";
-import { tombstoneWishlistItem } from "../local/wishWrites.js";
+import { type WishPatch, applyWishPatch, tombstoneWishlistItem } from "../local/wishWrites.js";
+import {
+  type EntryLabel,
+  type ReviewPlan,
+  type ShelfComparison,
+  type ValueDifference,
+  compareShelves,
+  differenceKey,
+} from "./conflict.js";
 import type { SyncTransport } from "./transport.js";
 import {
   type UploadRefusal,
@@ -93,6 +103,103 @@ export class SyncEngine {
   }
 
   /**
+   * Reads the account without adopting a single record of it.
+   *
+   * Deliberately not a sync: it pages the change log from the beginning into memory, never
+   * writes the cursor, and never adopts. That is what lets the dialogue promise "nothing
+   * changes until you choose" — a comparison that wrote as it read would already have
+   * merged the two shelves by the time the question appeared on screen.
+   *
+   * The catalogue is the one exception, and it is not the user's data: a copy that exists
+   * only in the account names a release this device has never heard of, so without filling
+   * that in the difference would be a list of untitled placeholders and unreadable exactly
+   * where reading matters most. A release row is a cache of MusicBrainz that any client may
+   * drop and refill, so caching it costs nothing and decides nothing.
+   */
+  async compare(): Promise<ShelfComparison> {
+    const account = await this.peekAccount();
+    const localCopies = await this.store.listCopies();
+    const localWishes = await this.store.listWishlist();
+
+    const releases = await this.describeReleases([...localCopies, ...account.copies]);
+    const labels = {
+      labelForCopy: (copy: Copy): EntryLabel => {
+        const release = releases.get(copy.releaseId);
+        return {
+          title: copy.manualTitle ?? release?.title ?? null,
+          artistName: copy.manualArtist ?? release?.artistName ?? null,
+          year: copy.manualYear ?? release?.year ?? null,
+          format: copyFormat(copy, release),
+        };
+      },
+      labelForWish: (wish: WishlistItem): EntryLabel => ({
+        title: wish.title === "" ? null : wish.title,
+        artistName: wish.artistName === "" ? null : wish.artistName,
+        year: wish.year,
+        format: wish.desiredFormat ?? "OTHER",
+      }),
+    };
+
+    const photos = (await this.store.listAllPhotos()).filter(
+      (photo) => photo.deletedAt === null,
+    ).length;
+
+    return compareShelves(
+      { copies: localCopies, wishes: localWishes },
+      { copies: account.copies, wishes: account.wishes },
+      labels,
+      photos,
+    );
+  }
+
+  /** The whole account, read into memory and written nowhere. */
+  private async peekAccount(): Promise<{ copies: Copy[]; wishes: WishlistItem[] }> {
+    const copies: Copy[] = [];
+    const wishes: WishlistItem[] = [];
+    let cursor = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const page = await this.transport.pull(cursor);
+      copies.push(...page.copies);
+      wishes.push(...page.wishes);
+      // A server that answers the same cursor forever would page for ever. It cannot
+      // happen against our own backend, and a comparison that hangs the sign-in is a worse
+      // failure than one that compares what it has.
+      if (page.cursor === cursor) break;
+      cursor = page.cursor;
+      hasMore = page.hasMore;
+    }
+    return { copies, wishes };
+  }
+
+  /**
+   * The catalogue rows behind these copies, filled in from the mirror where this device
+   * has none. Unreachable ids are simply absent: the difference then names that entry by
+   * whatever the copy itself carries, which is what an untitled row already looks like
+   * everywhere else in the app.
+   */
+  private async describeReleases(copies: readonly Copy[]): Promise<Map<string, Release>> {
+    const wanted = [
+      ...new Set(copies.map((copy) => copy.releaseId).filter((id) => !isManualReleaseId(id))),
+    ];
+    const held = await this.store.getReleases(wanted);
+    const missing = wanted.filter((releaseId) => !held.has(releaseId));
+    for (let from = 0; from < missing.length; from += RELEASE_BATCH) {
+      try {
+        const fetched = await this.transport.fetchReleases(
+          missing.slice(from, from + RELEASE_BATCH),
+        );
+        if (fetched.length > 0) await this.store.cacheReleases(fetched);
+        for (const release of fetched) held.set(release.id, release);
+      } catch {
+        // Offline or the mirror is down. The comparison is still the truth about which
+        // records differ; only their titles are missing, and the next sync fills them in.
+      }
+    }
+    return held;
+  }
+
+  /**
    * Signing in for the first time on a device that already has a collection.
    *
    * Nothing happens until the person chooses, because every option here is destructive in
@@ -136,6 +243,85 @@ export class SyncEngine {
 
     await this.store.writePendingIds(await this.allCopyIds());
     return this.sync();
+  }
+
+  /**
+   * The per-item resolution: merge everything, then undo the parts of the merge somebody
+   * disagreed with.
+   *
+   * Written as "merge, then correct" rather than as a fourth reconciliation strategy on
+   * purpose. Every record ends up on this device first, so a pick is an ordinary stamped
+   * edit and a drop is an ordinary stamped delete — which means both replicate to every
+   * other device by the machinery that already exists, and neither can produce a state the
+   * normal merge could not have reached. A bespoke path that assembled the final shelf
+   * itself would be a second definition of convergence, and the two would drift.
+   *
+   * The plan is sparse: anything nobody decided keeps the merge's own answer, which is why
+   * abandoning the review half-finished is safe.
+   */
+  async firstSyncReviewed(comparison: ShelfComparison, plan: ReviewPlan): Promise<SyncResult> {
+    await this.store.writePendingIds(await this.allCopyIds());
+    const merged = await this.sync();
+    const corrections = await this.applyReview(comparison, plan);
+    // A correction is a local write, and a local write is not real until it has been
+    // pushed. Skipped when there were none, so the ordinary "keep both, but let me look
+    // first" path costs one sync like every other choice.
+    return corrections === 0 ? merged : this.sync();
+  }
+
+  /** Writes the review's decisions over the merged shelf. Returns how many it changed. */
+  private async applyReview(comparison: ShelfComparison, plan: ReviewPlan): Promise<number> {
+    let written = 0;
+    const now = Date.now();
+
+    for (const id of plan.dropped) {
+      const copy = await this.store.getCopyIncludingDeleted(id);
+      if (copy !== undefined) {
+        if (copy.deletedAt !== null) continue;
+        await this.store.putCopy(tombstoneCopy(copy, this.clock, now));
+        written += 1;
+        continue;
+      }
+      const wish = await this.store.getWishlistItemIncludingDeleted(id);
+      if (wish === undefined || wish.deletedAt !== null) continue;
+      await this.store.putWishlistItem(tombstoneWishlistItem(wish, this.clock, now));
+      written += 1;
+    }
+
+    for (const difference of comparison.values) {
+      const side = plan.picks[differenceKey(difference)];
+      if (side === undefined) continue;
+      if (await this.applyPick(difference, side)) written += 1;
+    }
+    return written;
+  }
+
+  /**
+   * Puts one chosen value back on the merged record.
+   *
+   * The patch helpers restamp only fields whose value actually changed, so picking the
+   * side that already won is a no-op rather than a write that would start beating real
+   * edits made elsewhere. That is also why this returns whether anything moved.
+   */
+  private async applyPick(
+    difference: ValueDifference,
+    side: "LOCAL" | "ACCOUNT",
+  ): Promise<boolean> {
+    const value = side === "LOCAL" ? difference.local : difference.account;
+    if (difference.kind === "COPY") {
+      const copy = await this.store.getCopy(difference.id);
+      if (copy === undefined) return false;
+      const patched = applyCopyPatch(copy, { [difference.field]: value } as CopyPatch, this.clock);
+      if (patched === copy) return false;
+      await this.store.putCopy(patched);
+      return true;
+    }
+    const wish = await this.store.getWishlistItemIncludingDeleted(difference.id);
+    if (wish === undefined || wish.deletedAt !== null) return false;
+    const patched = applyWishPatch(wish, { [difference.field]: value } as WishPatch, this.clock);
+    if (patched === wish) return false;
+    await this.store.putWishlistItem(patched);
+    return true;
   }
 
   /** A normal incremental sync: pull what is new, push what changed locally. */
