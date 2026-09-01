@@ -4,17 +4,20 @@ import type { LegalDocument } from "./types.js";
 /**
  * Provider identification under § 5 DDG.
  *
- * Short, and every line of it is a legal requirement rather than a choice — except the
- * catalogue attribution, which sits here because MusicBrainz and Discogs ask to be credited
- * where a reader will actually find it, and nobody scrolls a privacy policy looking for it.
+ * Short, and most of it is a legal requirement rather than a choice. Two sections are not:
+ * the catalogue attribution, which sits here because MusicBrainz and Discogs ask to be
+ * credited where a reader will actually find it and nobody scrolls a privacy policy looking
+ * for it; and "Art des Angebots", which says outright that this is a private, non-commercial
+ * project — the fact the rest of the document has to stay consistent with, and the reason
+ * there is no Umsatzsteuer section here.
  *
  * A paragraph may contain "\n": renderers break those into lines rather than paragraphs, so
  * an address stays an address.
  */
 export const IMPRESSUM: LegalDocument = {
   id: "impressum",
-  version: "1.0",
-  effective: "2026-08-25",
+  version: "1.1",
+  effective: "2026-09-01",
   title: { de: "Impressum", en: "Impressum" },
   lede: {
     de: "Angaben gemäß § 5 DDG",
@@ -42,20 +45,20 @@ export const IMPRESSUM: LegalDocument = {
         ...(OPERATOR.phone === null
           ? [
               {
-                de: "Rekordo wird als privates Projekt betrieben; eine Rufnummer wird nicht veröffentlicht. Anfragen per E-Mail werden zeitnah beantwortet.",
-                en: "Rekordo is run as a private project and publishes no telephone number. E-mail enquiries are answered promptly.",
+                de: "Eine Rufnummer wird nicht veröffentlicht. Anfragen per E-Mail werden zeitnah beantwortet.",
+                en: "No telephone number is published. E-mail enquiries are answered promptly.",
               },
             ]
           : [{ de: `Telefon: ${OPERATOR.phone}`, en: `Telephone: ${OPERATOR.phone}` }]),
       ],
     },
     {
-      id: "vat",
-      heading: { de: "Umsatzsteuer", en: "VAT" },
+      id: "nature",
+      heading: { de: "Art des Angebots", en: "Nature of the service" },
       paragraphs: [
         {
-          de: "Als Kleinunternehmer im Sinne von § 19 Abs. 1 UStG wird keine Umsatzsteuer berechnet und daher auch keine Umsatzsteuer-Identifikationsnummer geführt.",
-          en: "As a small business under § 19 (1) UStG no VAT is charged, and no VAT identification number is held.",
+          de: "Rekordo wird von einer Privatperson als nicht-kommerzielles Projekt betrieben. Der Dienst ist kostenlos, es werden keine Entgelte erhoben und keine Waren oder Leistungen verkauft. Eine gewerbliche Tätigkeit liegt dem Angebot nicht zugrunde; ein Handelsregistereintrag und eine Umsatzsteuer-Identifikationsnummer bestehen daher nicht.",
+          en: "Rekordo is run by a private individual as a non-commercial project. The service is free of charge; no fees are charged and no goods or services are sold. It is not operated as a business, and there is accordingly no commercial register entry and no VAT identification number.",
         },
       ],
     },

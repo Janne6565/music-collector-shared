@@ -26,7 +26,7 @@ export const TERMS_OF_USE: LegalDocument = {
       heading: { de: "Geltungsbereich und Anbieter", en: "Scope and provider" },
       paragraphs: [
         {
-          de: `Diese Bedingungen gelten für die Nutzung der Music-Collector-Apps und der Website, betrieben von ${OPERATOR.name}, ${OPERATOR.street}, ${OPERATOR.city}. Abweichende Bedingungen gelten nur, wenn sie ausdrücklich in Textform vereinbart wurden.`,
+          de: `Diese Bedingungen gelten für die Nutzung der Rekordo-Apps und der Website, betrieben von ${OPERATOR.name}, ${OPERATOR.street}, ${OPERATOR.city}. Abweichende Bedingungen gelten nur, wenn sie ausdrücklich in Textform vereinbart wurden.`,
           en: `These terms govern your use of the Rekordo apps and website, operated by ${OPERATOR.name}, ${OPERATOR.street}, ${OPERATOR.city}, Germany. Deviating terms apply only where expressly agreed in text form.`,
         },
       ],
