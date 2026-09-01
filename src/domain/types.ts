@@ -117,6 +117,7 @@ export interface Release {
  * editing different fields of the same copy both keep their edit.
  */
 export const COPY_MERGEABLE_FIELDS = [
+  "albumId",
   "releaseId",
   "manualTitle",
   "manualArtist",
@@ -219,7 +220,22 @@ export interface Copy extends ManualRelease {
    * another device's id — a copy pointing at nothing. One field makes that
    * unrepresentable.
    */
-  readonly releaseId: string;
+  readonly releaseId: string | null;
+  /**
+   * The album this copy is of, source-qualified the same way, or null on a copy old enough
+   * to predate the field.
+   *
+   * The album is what the person chose. A pressing is a refinement of it, and one most
+   * people never make: they searched for a record, saw the sleeve they know, and put it on
+   * the shelf. Before this field the copy had nowhere to record that, so whichever pressing
+   * the catalogue happened to rank first was written down as fact -- a guess, stored as if
+   * it were an answer.
+   *
+   * So the pair reads: `albumId` is the record, `releaseId` is which pressing of it, and
+   * null there means nobody has said. This is the shape `WishlistItem` has always had; a
+   * copy is now the same question with the same optional second half.
+   */
+  readonly albumId: string | null;
   /**
    * The barcode of a scan that has not been identified yet, or null once it has.
    *

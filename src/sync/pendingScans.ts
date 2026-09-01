@@ -111,7 +111,7 @@ export async function resolvePendingScans({
   for (const copy of copies) {
     const release = candidate(found, copy.pendingBarcode, copy.manualFormat);
     if (release === undefined) continue;
-    await store.putCopy(resolveScannedCopy(copy, release.id, clock));
+    await store.putCopy(resolveScannedCopy(copy, release.id, release.albumId, clock));
     namedCopies += 1;
   }
 
