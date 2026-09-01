@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LEGAL_DOCUMENTS, legalDocument, sectionChip, sectionLabel } from "./documents.js";
-import { OPERATOR, OPERATOR_ONE_LINE } from "./operator.js";
+import { OPERATOR, OPERATOR_ADDRESS_LINES, OPERATOR_ONE_LINE } from "./operator.js";
 import { LEGAL_LANGUAGES } from "./types.js";
 
 /**
@@ -58,6 +58,21 @@ describe("legal documents", () => {
   it("names the operator in one line for a footer with no room", () => {
     expect(OPERATOR_ONE_LINE).toContain(OPERATOR.city);
     expect(OPERATOR_ONE_LINE.split(" · ")).toHaveLength(4);
+  });
+
+  it("claims no company, because there is none", () => {
+    const impressum = legalDocument("impressum");
+    const text = impressum.sections
+      .flatMap((section) => section.paragraphs.flatMap((paragraph) => [paragraph.de, paragraph.en]))
+      .join("\n");
+    // Rekordo is run privately. Every one of these words would assert a business that does
+    // not exist, and an Impressum that invents a trader is worse than one that omits a line.
+    for (const claim of ["Kleinunternehmer", "UStG", "USt-IdNr", "GmbH"]) {
+      expect(text, claim).not.toContain(claim);
+    }
+    // The address block is a person, not a letterhead: name, street, city, country.
+    expect(OPERATOR_ADDRESS_LINES).toHaveLength(4);
+    expect(OPERATOR_ADDRESS_LINES).not.toContain("Rekordo");
   });
 
   it("promises no telephone number it does not publish", () => {

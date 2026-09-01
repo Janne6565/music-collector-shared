@@ -30,10 +30,16 @@ export const OPERATOR: Operator = {
   phone: null,
 };
 
-/** The address block, one line per line, for anywhere that prints it whole. */
+/**
+ * The address block, one line per line, for anywhere that prints it whole.
+ *
+ * A natural person and nothing else. Rekordo is run privately and is not a business, so the
+ * app's name has no place between the name and the street: § 5 DDG wants the provider
+ * identified, and a product name where a Firma would stand reads as a company that does not
+ * exist. If that ever changes, the business name belongs in OPERATOR.name, not here.
+ */
 export const OPERATOR_ADDRESS_LINES: readonly string[] = [
   OPERATOR.name,
-  "Rekordo",
   OPERATOR.street,
   OPERATOR.city,
   OPERATOR.country,
