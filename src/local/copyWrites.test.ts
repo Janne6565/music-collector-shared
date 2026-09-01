@@ -5,6 +5,7 @@ import {
   type ClockSource,
   type CopyDraft,
   applyCopyPatch,
+  createAlbumCopy,
   createCopy,
   restoreCopy,
   tombstoneCopy,
@@ -61,6 +62,7 @@ describe("createCopy", () => {
 
     expect(Object.keys(copy.fieldClocks).sort()).toEqual(
       [
+        "albumId",
         "catalogArt",
         "condition",
         "currency",
@@ -238,5 +240,44 @@ describe("restoreCopy", () => {
     expect(restored.notes).toBe(copy.notes);
     expect(restored.condition).toBe(copy.condition);
     expect(restored.fieldClocks.condition).toBe(copy.fieldClocks.condition);
+  });
+});
+
+describe("a copy whose pressing nobody chose", () => {
+  it("records the album and leaves the pressing unanswered", () => {
+    const copy = createAlbumCopy({ albumId: "musicbrainz:alb-1" }, draft, testClock(), 5000, "c1");
+
+    expect(copy.albumId).toBe("musicbrainz:alb-1");
+    // Not "the first pressing the catalogue offered": nobody picked one, and writing one
+    // here is what made every shelf claim a pressing its owner had never seen.
+    expect(copy.releaseId).toBeNull();
+  });
+
+  it("stamps the album like any other mergeable field, so a later pick can win", () => {
+    const copy = createAlbumCopy({ albumId: "musicbrainz:alb-1" }, draft, testClock(), 5000, "c1");
+
+    expect(copy.fieldClocks.albumId).toBeDefined();
+    expect(copy.fieldClocks.releaseId).toBeDefined();
+  });
+
+  it("takes a pressing later without disturbing the album", () => {
+    const clock = testClock();
+    const copy = createAlbumCopy({ albumId: "musicbrainz:alb-1" }, draft, clock, 5000, "c1");
+
+    const picked = applyCopyPatch(copy, { releaseId: "discogs:release-9" }, clock);
+
+    expect(picked.releaseId).toBe("discogs:release-9");
+    expect(picked.albumId).toBe("musicbrainz:alb-1");
+    expect(picked.fieldClocks.albumId).toBe(copy.fieldClocks.albumId);
+    expect(picked.fieldClocks.releaseId).not.toBe(copy.fieldClocks.releaseId);
+  });
+});
+
+describe("a copy created from a pressing", () => {
+  it("still records which album the pressing is of", () => {
+    const copy = createCopy(release, draft, testClock(), 5000, "c1");
+
+    expect(copy.releaseId).toBe(release.id);
+    expect(copy.albumId).toBe(release.albumId);
   });
 });

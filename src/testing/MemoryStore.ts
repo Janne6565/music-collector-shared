@@ -8,7 +8,13 @@ import type {
   Release,
   WishlistItem,
 } from "../domain/types.js";
-import { FORMATS, manualReleaseCopyId } from "../domain/types.js";
+import {
+  FORMATS,
+  albumIdOf,
+  catalogueKeyOf,
+  catalogueKeysOf,
+  manualReleaseCopyId,
+} from "../domain/types.js";
 import type { LibraryFilter, LocalStore } from "../local/LocalStore.js";
 
 /**
@@ -44,9 +50,9 @@ export class MemoryStore implements LocalStore {
   async listCopies(filter?: LibraryFilter): Promise<Copy[]> {
     let copies = this.live(this.copies.values());
     if (filter?.format !== undefined && filter.format !== "ALL") {
-      const releases = await this.getReleases(copies.map((copy) => copy.releaseId));
+      const releases = await this.getReleases(catalogueKeysOf(copies));
       copies = copies.filter(
-        (copy) => copyFormat(copy, releases.get(copy.releaseId)) === filter.format,
+        (copy) => copyFormat(copy, releases.get(catalogueKeyOf(copy) ?? "")) === filter.format,
       );
     }
     if (filter?.condition !== undefined && filter.condition !== null) {
@@ -66,8 +72,10 @@ export class MemoryStore implements LocalStore {
 
   async listCopiesInReleaseGroup(albumId: string): Promise<Copy[]> {
     const copies = this.live(this.copies.values());
-    const releases = await this.getReleases(copies.map((copy) => copy.releaseId));
-    return copies.filter((copy) => releases.get(copy.releaseId)?.albumId === albumId);
+    const releases = await this.getReleases(catalogueKeysOf(copies));
+    return copies.filter(
+      (copy) => albumIdOf(copy, releases.get(catalogueKeyOf(copy) ?? "")) === albumId,
+    );
   }
 
   async putCopy(copy: Copy): Promise<void> {
@@ -219,9 +227,10 @@ export class MemoryStore implements LocalStore {
     let totalSpentCents = 0;
     let priced = 0;
     for (const copy of copies) {
-      const release = this.releases.get(copy.releaseId);
+      const release = this.releases.get(catalogueKeyOf(copy) ?? "");
       byFormat[copyFormat(copy, release)] += 1;
-      if (release !== undefined) albums.add(release.albumId);
+      const album = albumIdOf(copy, release);
+      if (album !== null) albums.add(album);
       if (copy.pricePaidCents !== null) {
         totalSpentCents += copy.pricePaidCents;
         priced += 1;

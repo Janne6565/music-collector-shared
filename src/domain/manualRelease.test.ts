@@ -42,7 +42,7 @@ describe("a copy nobody has a record of", () => {
 
     expect(copy.releaseId).toBe("local:copy-1");
     expect(isManualCopy(copy)).toBe(true);
-    expect(manualReleaseCopyId(copy.releaseId)).toBe(copy.id);
+    expect(manualReleaseCopyId(copy.releaseId ?? "")).toBe(copy.id);
     expect(isManualReleaseId("musicbrainz:r1")).toBe(false);
   });
 
