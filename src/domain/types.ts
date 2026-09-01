@@ -117,6 +117,7 @@ export interface Release {
  * editing different fields of the same copy both keep their edit.
  */
 export const COPY_MERGEABLE_FIELDS = [
+  "albumId",
   "releaseId",
   "manualTitle",
   "manualArtist",
@@ -219,7 +220,22 @@ export interface Copy extends ManualRelease {
    * another device's id — a copy pointing at nothing. One field makes that
    * unrepresentable.
    */
-  readonly releaseId: string;
+  readonly releaseId: string | null;
+  /**
+   * The album this copy is of, source-qualified the same way, or null on a copy old enough
+   * to predate the field.
+   *
+   * The album is what the person chose. A pressing is a refinement of it, and one most
+   * people never make: they searched for a record, saw the sleeve they know, and put it on
+   * the shelf. Before this field the copy had nowhere to record that, so whichever pressing
+   * the catalogue happened to rank first was written down as fact -- a guess, stored as if
+   * it were an answer.
+   *
+   * So the pair reads: `albumId` is the record, `releaseId` is which pressing of it, and
+   * null there means nobody has said. This is the shape `WishlistItem` has always had; a
+   * copy is now the same question with the same optional second half.
+   */
+  readonly albumId: string | null;
   /**
    * The barcode of a scan that has not been identified yet, or null once it has.
    *
@@ -458,3 +474,45 @@ export const FORMAT_LABELS: Readonly<Record<Format, string>> = {
   DIGITAL: "Digital",
   OTHER: "Other",
 };
+
+/**
+ * The key a copy's display facts live under.
+ *
+ * A copy names a record two ways: `releaseId` when a pressing was chosen, `albumId`
+ * always. Its title, artist and year come from whichever of those the catalogue can
+ * answer, so every lookup that turns copies into something renderable goes through this
+ * one function rather than reaching for `releaseId` and finding null.
+ *
+ * The map it keys is deliberately mixed -- pressings under release ids, albums under album
+ * ids. They are the same question ("what record is this?") asked at two levels of
+ * precision, and a copy asks it at whichever level it actually knows.
+ */
+export function catalogueKeyOf(copy: Pick<Copy, "releaseId" | "albumId">): string | null {
+  return copy.releaseId ?? copy.albumId;
+}
+
+/**
+ * Which album a copy is of, preferring what the copy itself says.
+ *
+ * Before `Copy.albumId` this could only be answered by resolving the pressing and reading
+ * its album, which meant a copy whose release the mirror had not cached belonged to no
+ * album at all -- it vanished from its own shelf grouping until the next sync. The copy now
+ * carries the answer, and the release is only consulted for rows written before it did.
+ */
+export function albumIdOf(
+  copy: Pick<Copy, "albumId">,
+  release: Pick<Release, "albumId"> | undefined,
+): string | null {
+  return copy.albumId ?? release?.albumId ?? null;
+}
+
+/**
+ * The distinct catalogue keys of a set of copies, ready to hand to a release lookup.
+ *
+ * Drops the copies that name nothing resolvable -- a copy is allowed to know neither a
+ * pressing nor an album while a scan is still waiting on a lookup -- so callers never have
+ * to thread a null through a batch fetch.
+ */
+export function catalogueKeysOf(copies: readonly Pick<Copy, "releaseId" | "albumId">[]): string[] {
+  return [...new Set(copies.map(catalogueKeyOf).filter((id): id is string => id !== null))];
+}

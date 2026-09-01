@@ -51,7 +51,7 @@ export function manualRelease(copy: Copy): Release {
 
 /** Whether this copy describes its own pressing rather than pointing at a catalogued one. */
 export function isManualCopy(copy: Pick<Copy, "releaseId">): boolean {
-  return isManualReleaseId(copy.releaseId);
+  return copy.releaseId !== null && isManualReleaseId(copy.releaseId);
 }
 
 /**
@@ -65,7 +65,9 @@ export function withManualReleases(
   copies: readonly Copy[],
 ): Map<string, Release> {
   for (const copy of copies) {
-    if (isManualCopy(copy)) releases.set(copy.releaseId, manualRelease(copy));
+    if (isManualCopy(copy) && copy.releaseId !== null) {
+      releases.set(copy.releaseId, manualRelease(copy));
+    }
   }
   return releases;
 }

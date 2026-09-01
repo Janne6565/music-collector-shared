@@ -5,6 +5,7 @@ import {
   type Photo,
   type Release,
   type WishlistItem,
+  catalogueKeyOf,
   isManualReleaseId,
 } from "../domain/types.js";
 import type { LocalStore } from "../local/LocalStore.js";
@@ -124,7 +125,7 @@ export class SyncEngine {
     const releases = await this.describeReleases([...localCopies, ...account.copies]);
     const labels = {
       labelForCopy: (copy: Copy): EntryLabel => {
-        const release = releases.get(copy.releaseId);
+        const release = releases.get(catalogueKeyOf(copy) ?? "");
         return {
           title: copy.manualTitle ?? release?.title ?? null,
           artistName: copy.manualArtist ?? release?.artistName ?? null,
@@ -180,7 +181,11 @@ export class SyncEngine {
    */
   private async describeReleases(copies: readonly Copy[]): Promise<Map<string, Release>> {
     const wanted = [
-      ...new Set(copies.map((copy) => copy.releaseId).filter((id) => !isManualReleaseId(id))),
+      ...new Set(
+        copies
+          .map(catalogueKeyOf)
+          .filter((id): id is string => id !== null && !isManualReleaseId(id)),
+      ),
     ];
     const held = await this.store.getReleases(wanted);
     const missing = wanted.filter((releaseId) => !held.has(releaseId));
@@ -451,9 +456,9 @@ export class SyncEngine {
     const wanted = [
       ...new Set(
         copies
-          .map((copy) => copy.releaseId)
+          .map(catalogueKeyOf)
           // A hand-entered release is derived from the copy itself and is in no catalogue.
-          .filter((releaseId) => !isManualReleaseId(releaseId)),
+          .filter((id): id is string => id !== null && !isManualReleaseId(id)),
       ),
     ];
     if (wanted.length === 0) return { cached: 0, missing: 0, unreachable: false };
@@ -493,7 +498,11 @@ export class SyncEngine {
    */
   private async catalogueFor(copies: readonly Copy[]): Promise<Release[]> {
     const wanted = [
-      ...new Set(copies.map((copy) => copy.releaseId).filter((id) => !isManualReleaseId(id))),
+      ...new Set(
+        copies
+          .map(catalogueKeyOf)
+          .filter((id): id is string => id !== null && !isManualReleaseId(id)),
+      ),
     ];
     if (wanted.length === 0) return [];
     return [...(await this.store.getReleases(wanted)).values()];

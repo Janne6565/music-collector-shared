@@ -34,11 +34,31 @@ export function createCopy(
   now: number,
   id: string,
 ): Copy {
-  return stampedCopy(release.id, EMPTY_MANUAL_RELEASE, draft, clock, now, id);
+  return stampedCopy(release.albumId, release.id, EMPTY_MANUAL_RELEASE, draft, clock, now, id);
+}
+
+/**
+ * Creates a copy of a record whose pressing nobody has chosen.
+ *
+ * The common case, and the reason `Copy.releaseId` is nullable: someone searched for a
+ * record, recognised it and put it on the shelf. Writing a pressing here anyway -- the one
+ * the catalogue ranked first, say -- would record a guess as an answer, and the person
+ * would have no way to tell later which of their copies they had actually chosen a pressing
+ * for. Null says the honest thing, and the pressing can still be picked afterwards.
+ */
+export function createAlbumCopy(
+  album: { readonly albumId: string },
+  draft: CopyDraft,
+  clock: ClockSource,
+  now: number,
+  id: string,
+): Copy {
+  return stampedCopy(album.albumId, null, EMPTY_MANUAL_RELEASE, draft, clock, now, id);
 }
 
 function stampedCopy(
-  releaseId: string,
+  albumId: string | null,
+  releaseId: string | null,
   manual: ManualRelease,
   draft: CopyDraft,
   clock: ClockSource,
@@ -53,6 +73,7 @@ function stampedCopy(
 
   return {
     id,
+    albumId,
     releaseId,
     ...manual,
     pendingBarcode,
@@ -88,7 +109,7 @@ export function createManualCopy(
   now: number,
   id: string,
 ): Copy {
-  return stampedCopy(manualReleaseId(id), manual, draft, clock, now, id);
+  return stampedCopy(manualReleaseId(id), manualReleaseId(id), manual, draft, clock, now, id);
 }
 
 /**
@@ -111,6 +132,7 @@ export function createScannedCopy(
 ): Copy {
   return stampedCopy(
     manualReleaseId(id),
+    manualReleaseId(id),
     { ...EMPTY_MANUAL_RELEASE, manualFormat: format },
     draft,
     clock,
@@ -128,8 +150,13 @@ export function createScannedCopy(
  * claiming to be waiting for one, and a merge with a peer mid-way through would make that
  * state durable.
  */
-export function resolveScannedCopy(copy: Copy, releaseId: string, clock: ClockSource): Copy {
-  return applyCopyPatch(copy, { releaseId, pendingBarcode: null }, clock);
+export function resolveScannedCopy(
+  copy: Copy,
+  releaseId: string,
+  albumId: string,
+  clock: ClockSource,
+): Copy {
+  return applyCopyPatch(copy, { albumId, releaseId, pendingBarcode: null }, clock);
 }
 
 /**
@@ -139,7 +166,7 @@ export function resolveScannedCopy(copy: Copy, releaseId: string, clock: ClockSo
  * and saved by the same press. `applyCopyPatch` restamps per key either way.
  */
 export type CopyPatch = Partial<
-  CopyDraft & ManualRelease & Pick<Copy, "hidden" | "releaseId" | "pendingBarcode">
+  CopyDraft & ManualRelease & Pick<Copy, "hidden" | "albumId" | "releaseId" | "pendingBarcode">
 >;
 
 /**

@@ -7,6 +7,7 @@ function copy(overrides: Partial<Copy> = {}): Copy {
   return {
     id: "copy-1",
     releaseId: "rel-1",
+    albumId: "alb-1",
     pendingBarcode: null,
     manualTitle: null,
     manualArtist: null,

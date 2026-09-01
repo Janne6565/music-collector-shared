@@ -1,3 +1,4 @@
+import { catalogueKeysOf } from "../domain/types.js";
 import type { LocalStore } from "../local/LocalStore.js";
 import { type AlbumCovers, albumsNeedingCovers, pressingsNeedingCovers } from "./albumCovers.js";
 import { type McPhotoBytes, buildMcArchive } from "./mcArchive.js";
@@ -79,7 +80,7 @@ export async function exportMcArchive(
   const photos = await store.listAllPhotos();
   // Manual copies derive their release rather than storing one, so the mirror has no entry
   // for a `local:` id and `getReleases` simply returns fewer than it was asked for.
-  const releases = await store.getReleases(copies.map((copy) => copy.releaseId));
+  const releases = await store.getReleases(catalogueKeysOf(copies));
 
   const photoBytes: McPhotoBytes[] = [];
   let photosWithoutBytes = 0;
