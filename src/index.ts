@@ -25,6 +25,7 @@ export * from "./domain/preview.js";
 export * from "./local/LocalStore.js";
 export * from "./local/copyWrites.js";
 export * from "./local/photoWrites.js";
+export * from "./local/releaseCache.js";
 export * from "./local/wishWrites.js";
 
 // Reconciliation, and the platform seam it reaches the network through.

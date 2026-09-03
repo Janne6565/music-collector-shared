@@ -16,6 +16,7 @@ import {
   manualReleaseCopyId,
 } from "../domain/types.js";
 import type { LibraryFilter, LocalStore } from "../local/LocalStore.js";
+import { mergeCachedRelease } from "../local/releaseCache.js";
 
 /**
  * A LocalStore that lives in a Map, for testing the parts of the app that are about
@@ -88,7 +89,9 @@ export class MemoryStore implements LocalStore {
   }
 
   async cacheReleases(releases: readonly Release[]): Promise<void> {
-    for (const release of releases) this.releases.set(release.id, release);
+    for (const release of releases) {
+      this.releases.set(release.id, mergeCachedRelease(release, this.releases.get(release.id)));
+    }
   }
 
   async getRelease(releaseId: string): Promise<Release | undefined> {

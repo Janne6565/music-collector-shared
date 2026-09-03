@@ -44,6 +44,14 @@ export type FirstSyncStrategy = "MERGE" | "KEEP_LOCAL" | "KEEP_ACCOUNT";
 
 /** The server takes a hundred release ids at a time, so a large collection pages. */
 const RELEASE_BATCH = 100;
+/**
+ * Marks the one-off refresh of releases whose cover a bad probe took away.
+ *
+ * A setting rather than a schema flag: it is a repair, not a state the app reasons about,
+ * and it wants to be forgotten as soon as it has run. See `cacheMissingReleases`.
+ */
+const COVER_REPAIR_KEY = "catalogue.coverRepair";
+const COVER_REPAIR_DONE = "1";
 
 /** Set once this device has offered the server the catalogue it holds. */
 const CATALOGUE_OFFERED = "catalogueOffered";
@@ -439,7 +447,8 @@ export class SyncEngine {
   }
 
   /**
-   * Fetches the catalogue entries for copies this device holds but cannot describe.
+   * Fetches the catalogue entries for copies this device holds but cannot describe, and
+   * re-asks about the ones it can describe but has no sleeve for.
    *
    * A pulled copy names a release; it does not carry it. The catalogue is a shared cache
    * that sync deliberately does not move, so on a device that has just signed in every
@@ -465,15 +474,40 @@ export class SyncEngine {
 
     const held = await this.store.getReleases(wanted);
     const missing = wanted.filter((releaseId) => !held.has(releaseId));
+    /*
+     * Held, but with no artwork — asked about once, ever.
+     *
+     * The catalogue cache used to be one-way lossy about covers. The server recorded a
+     * cover probe that never came back as "this release has no cover", served that as a
+     * null URL, and the client wrote the null over the URL it already had: a record lost
+     * its sleeve on both sides at once, permanently, and pulling to refresh could not
+     * bring it back. The server no longer answers that way and re-probes, and
+     * `mergeCachedRelease` stops the client throwing a cover away — but neither of those
+     * puts back a picture that is already gone. This does.
+     *
+     * Once and then never again, because a record that really has no cover would otherwise
+     * be asked about on every sync for ever, and the steady state of this method is meant
+     * to be one local read and no request at all.
+     */
+    const repairing = (await this.store.readSetting(COVER_REPAIR_KEY)) !== COVER_REPAIR_DONE;
+    const sleeveless = !repairing
+      ? []
+      : wanted.filter((releaseId) => {
+          const release = held.get(releaseId);
+          return release !== undefined && release.coverArtUrl === null;
+        });
+    const asking = [...missing, ...sleeveless];
 
     let cached = 0;
     let unreachable = false;
-    for (let from = 0; from < missing.length; from += RELEASE_BATCH) {
-      const batch = missing.slice(from, from + RELEASE_BATCH);
+    for (let from = 0; from < asking.length; from += RELEASE_BATCH) {
+      const batch = asking.slice(from, from + RELEASE_BATCH);
       try {
         const releases = await this.transport.fetchReleases(batch);
         if (releases.length > 0) await this.store.cacheReleases(releases);
-        cached += releases.length;
+        // Only rows that were absent count towards closing the gap: a refreshed sleeve is
+        // not a record the shelf could not describe.
+        cached += releases.filter((release) => !held.has(release.id)).length;
       } catch {
         // Offline, the mirror is down, or this one page was rejected. Carry on with the
         // rest rather than abandoning them: the batches are independent, and giving up on
@@ -482,6 +516,11 @@ export class SyncEngine {
         // very first page was the one that failed.
         unreachable = true;
       }
+    }
+    // The repair counts as done only when every page of it came back. A device that ran it
+    // while offline would otherwise spend its one attempt on nothing.
+    if (repairing && !unreachable) {
+      await this.store.writeSetting(COVER_REPAIR_KEY, COVER_REPAIR_DONE);
     }
     // Recounted from what is actually held rather than subtracted from `cached`: the
     // mirror answers with the releases it has and stays silent about the rest, so a page

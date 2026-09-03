@@ -223,9 +223,31 @@ describe("SyncEngine", () => {
     it("does not ask again for a release it already holds", async () => {
       await store.cacheReleases([release]);
       await store.putCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      // The first sync spends the one-off cover repair below; the steady state is after it.
+      fetchReleases.mockResolvedValueOnce([]);
+      await engine.sync();
+      fetchReleases.mockClear();
 
       await engine.sync();
 
+      expect(fetchReleases).not.toHaveBeenCalled();
+    });
+
+    it("asks once about a release it holds with no cover, and takes the answer", async () => {
+      // A throttled cover probe on the server used to be recorded as "this release has no
+      // artwork", and the client cached the answer over the URL it had — so a record lost
+      // its sleeve on both sides at once. This is the repair, and it runs exactly once.
+      await store.cacheReleases([release]);
+      await store.putCopy(createCopy(release, draft, clock, 1000, "copy-1"));
+      fetchReleases.mockResolvedValueOnce([{ ...release, coverArtUrl: "https://art/rel-1" }]);
+
+      await engine.sync();
+
+      expect(fetchReleases).toHaveBeenCalledWith(["rel-1"]);
+      expect(await store.getRelease("rel-1")).toMatchObject({ coverArtUrl: "https://art/rel-1" });
+
+      fetchReleases.mockClear();
+      await engine.sync();
       expect(fetchReleases).not.toHaveBeenCalled();
     });
 
@@ -315,6 +337,8 @@ describe("SyncEngine", () => {
       // The device that made the copies is the only one still holding their releases: the
       // mirror never saw them, and for a Discogs id it can never fetch them either.
       await store.writeSetting("catalogueOffered", "false");
+      // Not what this test is about: the one-off cover repair would spend a mocked answer.
+      await store.writeSetting("catalogue.coverRepair", "1");
       await store.cacheReleases([release]);
       await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
       // Asked before the offer and again after it: nothing, then the release it just took.
@@ -336,6 +360,8 @@ describe("SyncEngine", () => {
       // A server too old to know the field answers 200 and changes nothing. Counting that
       // as done would spend the single offer a collection gets on absolutely nothing.
       await store.writeSetting("catalogueOffered", "false");
+      // Not what this test is about: the one-off cover repair would spend a mocked answer.
+      await store.writeSetting("catalogue.coverRepair", "1");
       await store.cacheReleases([release]);
       await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
       fetchReleases.mockResolvedValue([]);
@@ -350,6 +376,8 @@ describe("SyncEngine", () => {
 
     it("offers nothing the mirror can already answer for", async () => {
       await store.writeSetting("catalogueOffered", "false");
+      // Not what this test is about: the one-off cover repair would spend a mocked answer.
+      await store.writeSetting("catalogue.coverRepair", "1");
       await store.cacheReleases([release]);
       await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
       fetchReleases.mockResolvedValue([release]);
@@ -376,6 +404,8 @@ describe("SyncEngine", () => {
 
     it("tries again next sync when the offer could not get through", async () => {
       await store.writeSetting("catalogueOffered", "false");
+      // Not what this test is about: the one-off cover repair would spend a mocked answer.
+      await store.writeSetting("catalogue.coverRepair", "1");
       await store.cacheReleases([release]);
       await store.adoptCopy(createCopy(release, draft, clock, 1000, "copy-1"));
       fetchReleases.mockResolvedValue([]);
